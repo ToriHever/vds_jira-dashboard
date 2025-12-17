@@ -1,0 +1,9 @@
+bind = "127.0.0.1:8000"
+workers = 4
+worker_class = "sync"
+worker_connections = 1000
+timeout = 30
+keepalive = 2
+errorlog = "/opt/jira-dashboard/logs/gunicorn-error.log"
+accesslog = "/opt/jira-dashboard/logs/gunicorn-access.log"
+loglevel = "info"
