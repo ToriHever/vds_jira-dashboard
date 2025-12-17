@@ -150,6 +150,100 @@ def get_statistics():
     })
 
 
+@app.route('/api/current-sprint-stats')
+def get_current_sprint_stats():
+    """Статистика по текущему спринту"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Находим текущий спринт (с максимальным номером)
+    cursor.execute("""
+        SELECT 
+            stats.*
+        FROM (
+            SELECT 
+                sprint,
+                COUNT(*) as total_tasks,
+                COUNT(CASE WHEN status = 'Готово' THEN 1 END) as completed_tasks,
+                COUNT(CASE WHEN status = 'В работе' THEN 1 END) as in_progress_tasks,
+                COUNT(CASE WHEN status = 'Открыто' THEN 1 END) as open_tasks,
+                COALESCE(SUM(time_original_estimate), 0) as total_estimated,
+                COALESCE(SUM(time_spent), 0) as total_spent,
+                COALESCE(SUM(CASE WHEN status = 'Готово' THEN time_spent ELSE 0 END), 0) as completed_spent
+            FROM jira_issues
+            WHERE sprint IS NOT NULL
+            GROUP BY sprint
+        ) as stats
+        WHERE stats.sprint = (
+            SELECT sprint
+            FROM jira_issues
+            WHERE sprint IS NOT NULL
+            GROUP BY sprint
+            -- ИСПРАВЛЕНИЕ: INSTR → STRPOS
+            ORDER BY CAST(SUBSTR(sprint, STRPOS(sprint, '#') + 1) AS INTEGER) DESC
+            LIMIT 1)
+    """)
+    
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not result:
+        return jsonify({
+            'error': 'Нет данных по спринтам',
+            'sprint_name': None
+        })
+    
+    # Константы
+    SPRINT_CAPACITY = 80  # часов на спринт (2 недели)
+    
+    # Расчёты
+    total_estimated = float(result['total_estimated'])
+    total_spent = float(result['total_spent'])
+    completed_spent = float(result['completed_spent'])
+    
+    # Прогресс по задачам
+    progress_percent = (result['completed_tasks'] / result['total_tasks'] * 100) if result['total_tasks'] > 0 else 0
+    
+    # Загруженность спринта
+    workload_percent = (total_estimated / SPRINT_CAPACITY * 100)
+    
+    # Использовано времени от capacity
+    time_used_percent = (total_spent / SPRINT_CAPACITY * 100)
+    
+    # Оставшееся время
+    remaining_capacity = SPRINT_CAPACITY - total_spent
+    remaining_work = total_estimated - completed_spent
+    
+    # Статус загруженности
+    if workload_percent > 100:
+        workload_status = 'overloaded'
+    elif workload_percent > 90:
+        workload_status = 'full'
+    elif workload_percent > 70:
+        workload_status = 'normal'
+    else:
+        workload_status = 'light'
+    
+    return jsonify({
+        'sprint_name': result['sprint'],
+        'sprint_capacity': SPRINT_CAPACITY,
+        'total_tasks': result['total_tasks'],
+        'completed_tasks': result['completed_tasks'],
+        'in_progress_tasks': result['in_progress_tasks'],
+        'open_tasks': result['open_tasks'],
+        'total_estimated': round(total_estimated, 2),
+        'total_spent': round(total_spent, 2),
+        'completed_spent': round(completed_spent, 2),
+        'remaining_capacity': round(remaining_capacity, 2),
+        'remaining_work': round(remaining_work, 2),
+        'progress_percent': round(progress_percent, 1),
+        'workload_percent': round(workload_percent, 1),
+        'time_used_percent': round(time_used_percent, 1),
+        'workload_status': workload_status
+    })
+
+
 @app.route('/api/issue/<issue_key>')
 def get_issue_details(issue_key):
     """API: Получить детали задачи"""

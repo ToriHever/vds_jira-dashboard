@@ -137,6 +137,17 @@
             text-transform: uppercase;
             font-size: 0.9em;
             letter-spacing: 1px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.3s ease;
+        }
+        
+        th:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+        }
+        
+        th.sortable {
+            cursor: pointer;
         }
 
         td {
@@ -183,6 +194,80 @@
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
+        
+        .sprint-load-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .sprint-metric {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .sprint-metric h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .sprint-metric .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .sprint-metric .subtext {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .progress-fill.warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+        }
+        
+        .progress-fill.danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .status-light { background: #d4edda; color: #155724; }
+        .status-normal { background: #d1ecf1; color: #0c5460; }
+        .status-full { background: #fff3cd; color: #856404; }
+        .status-overloaded { background: #f8d7da; color: #721c24; }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -270,6 +355,7 @@
             <h1>📊 Jira Dashboard</h1>
             <p class="subtitle">Управление задачами и анализ производительности</p>
             <button class="refresh-btn" onclick="loadData()">🔄 Обновить данные</button>
+            <button class="refresh-btn" onclick="loadSEOTasks()" style="margin-left: 10px;">🔍 Мои SEO задачи</button>
             <div class="last-sync" id="lastSync"></div>
         </div>
 
@@ -290,12 +376,25 @@
                 <div class="stat-number" id="completed">-</div>
                 <div class="stat-label">Завершено</div>
             </div>
+            
+            <!-- НОВАЯ КАРТОЧКА: Загруженность спринта -->
+            <div class="stat-card" id="sprintLoadCard" style="grid-column: span 2; cursor: pointer;" onclick="showTab('sprintLoad')">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div class="stat-number" id="sprintLoadPercent" style="font-size: 2em;">-</div>
+                        <div class="stat-label">Загруженность спринта</div>
+                        <div id="sprintName" style="color: #999; font-size: 0.9em; margin-top: 5px;">-</div>
+                    </div>
+                    <div id="sprintLoadIcon" style="font-size: 3em;">📊</div>
+                </div>
+            </div>
         </div>
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('issues')">📋 Все задачи</button>
             <button class="tab" onclick="showTab('sprints')">🏃 По спринтам</button>
             <button class="tab" onclick="showTab('status')">📈 По статусам</button>
+            <button class="tab" onclick="showTab('sprintLoad')">⚡ Загруженность спринта</button>
             <button class="tab" onclick="showTab('links')">🔗 Связи</button>
         </div>
 
@@ -320,110 +419,373 @@
                 <p style="margin-bottom: 20px; color: #666;">Здесь отображаются все связанные задачи. Вы можете использовать эти данные для построения карты зависимостей.</p>
                 <div id="linksTable"></div>
             </div>
+            <div id="sprintLoad" class="tab-content">
+            <h2 id="sprintLoadTitle">⚡ Загруженность текущего спринта</h2>
+                <div id="sprintLoadDetails"></div>
+            </div>
         </div>
     </div>
 
     <script>
         let allIssues = [];
-
+        let sortColumn = null;
+        let sortDirection = 'asc';
+    
+        // 1. СНАЧАЛА функции сортировки
+        function getSortIcon(column) {
+            if (sortColumn === column) {
+                return sortDirection === 'asc' ? '▲' : '▼';
+            }
+            return '⇅';
+        }
+    
+        function sortTable(column) {
+            // Если кликнули на ту же колонку - меняем направление
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Сортируем массив задач
+            const sortedIssues = [...allIssues].sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+                
+                // Обработка null/undefined
+                if (aVal === null || aVal === undefined || aVal === '') aVal = '';
+                if (bVal === null || bVal === undefined || bVal === '') bVal = '';
+                
+                // Для чисел
+                if (column === 'time_original_estimate' || column === 'time_spent') {
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                }
+                
+                // Сравнение
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Перерисовываем таблицу
+            renderIssuesTable(sortedIssues);
+        }
+    
+        // 2. ПОТОМ функция loadData
         async function loadData() {
             try {
                 // Загружаем статистику
                 const statsResponse = await fetch('/api/statistics');
                 const stats = await statsResponse.json();
-
+    
                 document.getElementById('totalIssues').textContent = stats.total;
                 document.getElementById('totalLinks').textContent = stats.total_links;
-
+    
                 const inProgressCount = stats.by_status.find(s => s.status === 'В работе')?.count || 0;
                 const completedCount = stats.by_status.find(s => s.status === 'Готово')?.count || 0;
-
+    
                 document.getElementById('inProgress').textContent = inProgressCount;
                 document.getElementById('completed').textContent = completedCount;
-
+    
                 // Загружаем задачи
                 const issuesResponse = await fetch('/api/issues');
                 allIssues = await issuesResponse.json();
-
+    
                 renderIssuesTable(allIssues);
                 renderSprintsTable(stats.by_sprint);
                 renderStatusTable(stats.by_status);
-
+    
                 // Обновляем время последней синхронизации
                 if (allIssues.length > 0) {
                     document.getElementById('lastSync').textContent = 
                         `Последняя синхронизация: ${allIssues[0].last_synced}`;
                 }
-
+                
+                await loadSprintStats();
+    
             } catch (error) {
                 console.error('Ошибка загрузки данных:', error);
                 alert('Ошибка загрузки данных. Проверьте подключение к серверу.');
             }
         }
-
-        function renderIssuesTable(issues) {
-            const html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Ключ</th>
-                            <th>Тип</th>
-                            <th>Статус</th>
-                            <th>Описание</th>
-                            <th>Исполнитель</th>
-                            <th>Приоритет</th>
-                            <th>Оценка</th>
-                            <th>Затрачено</th>
-                            <th>Спринт</th>
-                            <th>Связи</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${issues.map(issue => `
-                            <tr>
-                                <td><a href="#" class="issue-key" onclick="showIssueDetails('${issue.issue_key}')">${issue.issue_key}</a></td>
-                                <td>${issue.issue_type || '-'}</td>
-                                <td><span class="badge ${getStatusClass(issue.status)}">${issue.status || '-'}</span></td>
-                                <td>${issue.summary || '-'}</td>
-                                <td>${issue.assignee || '-'}</td>
-                                <td class="${getPriorityClass(issue.priority)}">${issue.priority || '-'}</td>
-                                <td>${formatHours(issue.time_original_estimate)}</td>
-                                <td>${formatHours(issue.time_spent)}</td>
-                                <td>${issue.sprint || '-'}</td>
-                                <td>${renderLinkedIssues(issue.linked_issues)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            document.getElementById('issuesTable').innerHTML = html;
+        
+        async function loadSprintStats() {
+    try {
+        const response = await fetch('/api/current-sprint-stats');
+        const stats = await response.json();
+        
+        if (stats.error) {
+            document.getElementById('sprintLoadPercent').textContent = 'N/A';
+            document.getElementById('sprintName').textContent = 'Нет данных';
+            return;
         }
+        
+        // Обновляем карточку
+        document.getElementById('sprintLoadPercent').textContent = `${stats.workload_percent}%`;
+        document.getElementById('sprintName').textContent = stats.sprint_name;
+        
+        // Иконка и цвет в зависимости от загруженности
+        const icon = document.getElementById('sprintLoadIcon');
+        const card = document.getElementById('sprintLoadCard');
+        
+        if (stats.workload_status === 'overloaded') {
+            icon.textContent = '🔴';
+            card.style.borderLeft = '5px solid #e74c3c';
+        } else if (stats.workload_status === 'full') {
+            icon.textContent = '🟡';
+            card.style.borderLeft = '5px solid #f39c12';
+        } else if (stats.workload_status === 'normal') {
+            icon.textContent = '🟢';
+            card.style.borderLeft = '5px solid #27ae60';
+        } else {
+            icon.textContent = '⚪';
+            card.style.borderLeft = '5px solid #95a5a6';
+        }
+        
+        // Детальная статистика
+        renderSprintLoadDetails(stats);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки статистики спринта:', error);
+    }
+}
+
+function renderSprintLoadDetails(stats) {
+    const statusText = {
+        'light': 'Лёгкая загрузка',
+        'normal': 'Нормальная загрузка',
+        'full': 'Полная загрузка',
+        'overloaded': 'Перегружен'
+    };
+    
+    const statusClass = {
+        'light': 'status-light',
+        'normal': 'status-normal',
+        'full': 'status-full',
+        'overloaded': 'status-overloaded'
+    };
+    
+    const html = `
+        <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h3>${stats.sprint_name}</h3>
+            <span class="status-indicator ${statusClass[stats.workload_status]}">
+                ${statusText[stats.workload_status]}
+            </span>
+        </div>
+        
+        <div class="sprint-load-container">
+            <div class="sprint-metric">
+                <h3>📊 Capacity спринта</h3>
+                <div class="value">${stats.sprint_capacity}ч</div>
+                <div class="subtext">2 недели работы</div>
+            </div>
+            
+            <div class="sprint-metric">
+                <h3>📝 Оценка задач</h3>
+                <div class="value">${stats.total_estimated}ч</div>
+                <div class="subtext">${stats.workload_percent}% от capacity</div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${stats.workload_percent > 100 ? 'danger' : stats.workload_percent > 90 ? 'warning' : ''}" 
+                         style="width: ${Math.min(stats.workload_percent, 100)}%">
+                        ${stats.workload_percent}%
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sprint-metric">
+                <h3>⏱️ Затрачено времени</h3>
+                <div class="value">${stats.total_spent}ч</div>
+                <div class="subtext">${stats.time_used_percent}% от capacity</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${Math.min(stats.time_used_percent, 100)}%">
+                        ${stats.time_used_percent}%
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sprint-metric">
+                <h3>✅ Прогресс задач</h3>
+                <div class="value">${stats.completed_tasks}/${stats.total_tasks}</div>
+                <div class="subtext">${stats.progress_percent}% завершено</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${stats.progress_percent}%">
+                        ${stats.progress_percent}%
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sprint-metric">
+                <h3>🔄 Активные задачи</h3>
+                <div class="value">${stats.in_progress_tasks}</div>
+                <div class="subtext">В работе сейчас</div>
+            </div>
+            
+            <div class="sprint-metric">
+                <h3>📋 Открытые задачи</h3>
+                <div class="value">${stats.open_tasks}</div>
+                <div class="subtext">Ожидают начала</div>
+            </div>
+            
+            <div class="sprint-metric" style="grid-column: span 2;">
+                <h3>⚡ Оставшаяся capacity</h3>
+                <div class="value">${stats.remaining_capacity}ч</div>
+                <div class="subtext">
+                    Осталось работы: ${stats.remaining_work}ч
+                    ${stats.remaining_work > stats.remaining_capacity ? 
+                        '<br><span style="color: #e74c3c; font-weight: bold;">⚠️ Работы больше чем capacity!</span>' : 
+                        '<br><span style="color: #27ae60;">✓ В пределах capacity</span>'}
+                </div>
+            </div>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; margin-top: 20px;">
+            <h3>💡 Рекомендации</h3>
+            ${getRecommendations(stats)}
+        </div>
+    `;
+    
+    document.getElementById('sprintLoadDetails').innerHTML = html;
+    document.getElementById('sprintLoadTitle').textContent = `⚡ Загруженность: ${stats.sprint_name}`;
+}
+
+function getRecommendations(stats) {
+    const recommendations = [];
+    
+    if (stats.workload_percent > 100) {
+        recommendations.push('🔴 <strong>Спринт перегружен!</strong> Оценка задач превышает capacity на ' + (stats.workload_percent - 100).toFixed(1) + '%. Рекомендуется перенести часть задач.');
+    } else if (stats.workload_percent > 90) {
+        recommendations.push('🟡 <strong>Высокая загрузка.</strong> Спринт загружен почти полностью. Будьте осторожны с добавлением новых задач.');
+    } else if (stats.workload_percent < 70) {
+        recommendations.push('⚪ <strong>Низкая загрузка.</strong> В спринте есть место для дополнительных задач (~' + (80 - stats.total_estimated).toFixed(1) + 'ч).');
+    } else {
+        recommendations.push('🟢 <strong>Оптимальная загрузка.</strong> Спринт загружен хорошо.');
+    }
+    
+    if (stats.remaining_work > stats.remaining_capacity && stats.progress_percent < 80) {
+        recommendations.push('⚠️ <strong>Риск не завершить спринт.</strong> Оставшейся работы больше чем свободного времени.');
+    }
+    
+    if (stats.open_tasks > stats.in_progress_tasks * 2) {
+        recommendations.push('📋 <strong>Много задач в очереди.</strong> Рекомендуется начать работу над открытыми задачами.');
+    }
+    
+    if (stats.progress_percent > 70 && stats.time_used_percent < 70) {
+        recommendations.push('✅ <strong>Отличный темп!</strong> Команда завершает задачи эффективно.');
+    }
+    
+    return recommendations.length > 0 
+        ? '<ul>' + recommendations.map(r => '<li style="margin-bottom: 10px;">' + r + '</li>').join('') + '</ul>'
+        : '<p>Всё идёт по плану! 🎯</p>';
+}
+
+    // 3. ПОТОМ renderIssuesTable
+    function renderIssuesTable(issues) {
+        const html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('issue_key')" style="cursor: pointer;">
+                            Ключ ${getSortIcon('issue_key')}
+                        </th>
+                        <th onclick="sortTable('issue_type')" style="cursor: pointer;">
+                            Тип ${getSortIcon('issue_type')}
+                        </th>
+                        <th onclick="sortTable('status')" style="cursor: pointer;">
+                            Статус ${getSortIcon('status')}
+                        </th>
+                        <th onclick="sortTable('summary')" style="cursor: pointer;">
+                            Описание ${getSortIcon('summary')}
+                        </th>
+                        <th onclick="sortTable('assignee')" style="cursor: pointer;">
+                            Исполнитель ${getSortIcon('assignee')}
+                        </th>
+                        <th onclick="sortTable('priority')" style="cursor: pointer;">
+                            Приоритет ${getSortIcon('priority')}
+                        </th>
+                        <th onclick="sortTable('time_original_estimate')" style="cursor: pointer;">
+                            Оценка ${getSortIcon('time_original_estimate')}
+                        </th>
+                        <th onclick="sortTable('time_spent')" style="cursor: pointer;">
+                            Затрачено ${getSortIcon('time_spent')}
+                        </th>
+                        <th onclick="sortTable('sprint')" style="cursor: pointer;">
+                            Спринт ${getSortIcon('sprint')}
+                        </th>
+                        <th>Связи</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${issues.map(issue => `
+                        <tr>
+                            <td><a href="#" class="issue-key" onclick="showIssueDetails('${issue.issue_key}')">${issue.issue_key}</a></td>
+                            <td>${issue.issue_type || '-'}</td>
+                            <td><span class="badge ${getStatusClass(issue.status)}">${issue.status || '-'}</span></td>
+                            <td>${issue.summary || '-'}</td>
+                            <td>${issue.assignee || '-'}</td>
+                            <td class="${getPriorityClass(issue.priority)}">${issue.priority || '-'}</td>
+                            <td>${formatHours(issue.time_original_estimate)}</td>
+                            <td>${formatHours(issue.time_spent)}</td>
+                            <td>${issue.sprint || '-'}</td>
+                            <td>${renderLinkedIssues(issue.linked_issues)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        document.getElementById('issuesTable').innerHTML = html;
+    }
 
         function renderSprintsTable(sprints) {
-            const html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Спринт</th>
-                            <th>Задач</th>
-                            <th>Оценка (часы)</th>
-                            <th>Затрачено (часы)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${sprints.map(sprint => `
+        // Сортируем спринты по номеру из названия (например #24)
+        const sortedSprints = [...sprints].sort((a, b) => {
+            // Извлекаем номер спринта из названия (например: "MAR 08.12.25 - 22.12.25 #24")
+            const getSprintNumber = (sprintName) => {
+                if (!sprintName) return 0;
+                const match = sprintName.match(/#(\d+)/);
+                return match ? parseInt(match[1]) : 0;
+            };
+            
+            const numA = getSprintNumber(a.sprint);
+            const numB = getSprintNumber(b.sprint);
+            
+            return numB - numA; // Убывание (от большего к меньшему)
+        });
+        
+        const html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Спринт</th>
+                        <th>Задач</th>
+                        <th>Оценка (часы)</th>
+                        <th>Затрачено (часы)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedSprints.map(sprint => {
+                        // Форматируем часы без .00
+                        const formatSprintHours = (hours) => {
+                            if (!hours) return '0';
+                            const num = Number(hours);
+                            return num % 1 === 0 ? num.toString() : num.toFixed(2);
+                        };
+                        
+                        return `
                             <tr>
                                 <td>${sprint.sprint}</td>
                                 <td>${sprint.count}</td>
-                                <td>${sprint.total_estimate ? Number(sprint.total_estimate).toFixed(2) : '0.00'}</td>
-                                <td>${sprint.total_spent ? Number(sprint.total_spent).toFixed(2) : '0.00'}</td>
+                                <td>${formatSprintHours(sprint.total_estimate)}</td>
+                                <td>${formatSprintHours(sprint.total_spent)}</td>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            document.getElementById('sprintsTable').innerHTML = html;
-        }
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+        document.getElementById('sprintsTable').innerHTML = html;
+    }
 
         function renderStatusTable(statuses) {
             const html = `
@@ -483,7 +845,7 @@
         }
 
         function formatHours(hours) {
-           if (hours === null || hours === undefined || hours === '' || hours === 'null') {
+            if (hours === null || hours === undefined || hours === '' || hours === 'null') {
                 return '-';
             }
             if (typeof hours === 'object') {
@@ -494,6 +856,10 @@
                 return '-';
             }
             
+            // Убираем .00 если число целое
+            if (num % 1 === 0) {
+                return `${num}ч`;
+            }
             return `${num.toFixed(2)}ч`;
         }
 
@@ -530,8 +896,54 @@
         });
 
         // Автоматическое обновление каждые 5 минут
-        setInterval(loadData, 5 * 60 * 1000);
-
+        // setInterval(loadData, 5 * 60 * 1000);
+       async function loadSEOTasks() {
+    try {
+        // Запрос к вашему API
+        const response = await fetch('/api/my-tasks-seo');
+        const tasks = await response.json();
+        
+        // Показываем результаты
+        if (tasks.length === 0) {
+            alert('SEO задач не найдено');
+            return;
+        }
+        
+        // Формируем HTML таблицу
+        const html = `
+            <h2>🔍 Мои SEO задачи (${tasks.length})</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ключ</th>
+                        <th>Описание</th>
+                        <th>Статус</th>
+                        <th>Затрачено</th>
+                        <th>Спринт</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tasks.map(task => `
+                        <tr>
+                            <td><a href="#" class="issue-key">${task.issue_key}</a></td>
+                            <td>${task.summary || '-'}</td>
+                            <td><span class="badge ${getStatusClass(task.status)}">${task.status}</span></td>
+                            <td>${formatHours(task.time_spent)}</td>
+                            <td>${task.sprint || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        
+        // Отображаем в таб "issues"
+        document.getElementById('issuesTable').innerHTML = html;
+        
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Ошибка загрузки SEO задач');
+    }
+} 
         // Загружаем данные при старте
         loadData();
     </script>
