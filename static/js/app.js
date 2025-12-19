@@ -679,22 +679,27 @@ async function loadGraphVisualization() {
         graphData = data;
         
         // Подготавливаем узлы для Vis.js
-        const nodes = data.nodes.map(node => ({
-            id: node.issue_key,
-            label: node.issue_key,
-            title: `<div style="max-width: 300px;">
-                <strong>${node.issue_key}</strong><br/>
-                <strong>Название:</strong> ${node.summary || '-'}<br/>
-                <strong>Статус:</strong> ${node.status || '-'}<br/>
-                <strong>Тип:</strong> ${node.issue_type || '-'}<br/>
-                <strong>Приоритет:</strong> ${node.priority || '-'}<br/>
-                <strong>Исполнитель:</strong> ${node.assignee || '-'}
-            </div>`,
-            color: getNodeColor(node.status),
-            font: { size: 12, color: '#333' },
-            shape: 'box',
-            margin: 8
-        }));
+        const nodes = data.nodes.map(node => {
+            // Формируем текстовый тултип (HTML не поддерживается напрямую)
+            const tooltip = [
+                `${node.issue_key}`,
+                `Название: ${node.summary || '-'}`,
+                `Статус: ${node.status || '-'}`,
+                `Тип: ${node.issue_type || '-'}`,
+                `Приоритет: ${node.priority || '-'}`,
+                `Исполнитель: ${node.assignee || '-'}`
+            ].join('\n');
+            
+            return {
+                id: node.issue_key,
+                label: node.issue_key,
+                title: tooltip,
+                color: getNodeColor(node.status),
+                font: { size: 12, color: '#333' },
+                shape: 'box',
+                margin: 8
+            };
+        });
 
         // Подготавливаем связи
         const edges = data.edges.map((edge, idx) => ({
@@ -716,6 +721,7 @@ async function loadGraphVisualization() {
             '<p style="color: #e74c3c; text-align: center; padding: 50px;">Ошибка загрузки графа связей</p>';
     }
 }
+
 
 function getNodeColor(status) {
     if (!status) return '#dfe6e9';
