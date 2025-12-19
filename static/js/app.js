@@ -1,6 +1,8 @@
 let allIssues = [];
 let sortColumn = null;
 let sortDirection = 'asc';
+let network = null;
+let graphData = { nodes: [], edges: [] };
     
 
 // Функция для определения CSS класса строки по типу задачи
@@ -663,4 +665,168 @@ alert('Ошибка загрузки SEO задач');
 } 
 // Загружаем данные при старте
 loadData();
+
+async function loadGraphVisualization() {
+    try {
+        const response = await fetch('/api/graph');
+        const data = await response.json();
+        
+        graphData = data;
+        
+        // Подготавливаем узлы для Vis.js
+        const nodes = data.nodes.map(node => ({
+            id: node.issue_key,
+            label: node.issue_key,
+            title: `${node.issue_key}\n${node.summary}\nСтатус: ${node.status}`,
+            color: getNodeColor(node.status),
+            font: { size: 12, color: '#333' },
+            shape: 'box',
+            margin: 8
+        }));
+
+        // Подготавливаем связи
+        const edges = data.edges.map((edge, idx) => ({
+            id: idx,
+            from: edge.source_issue_key,
+            to: edge.target_issue_key,
+            label: edge.direction_label,
+            arrows: 'to',
+            color: edge.direction === 'inward' ? '#e74c3c' : '#3498db',
+            font: { size: 9 },
+            smooth: { type: 'curvedCW', roundness: 0.15 }
+        }));
+
+        renderGraph(nodes, edges);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки графа:', error);
+        document.getElementById('linksTable').innerHTML = 
+            '<p style="color: #e74c3c; text-align: center; padding: 50px;">Ошибка загрузки графа связей</p>';
+    }
+}
+
+function getNodeColor(status) {
+    if (!status) return '#dfe6e9';
+    const s = status.toLowerCase();
+    if (s.includes('готов') || s.includes('done')) return '#55efc4';
+    if (s.includes('работ') || s.includes('progress')) return '#74b9ff';
+    if (s.includes('откр') || s.includes('open')) return '#ffeaa7';
+    return '#dfe6e9';
+}
+
+function renderGraph(nodes, edges) {
+    const container = document.getElementById('graphContainer');
+    if (!container) {
+        // Создаем контейнер если его нет
+        const linksDiv = document.getElementById('linksTable');
+        linksDiv.innerHTML = `
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                <button onclick="fitGraph()" class="refresh-btn">📐 По размеру экрана</button>
+                <button onclick="toggleGraphPhysics()" class="refresh-btn">⚡ Физика: <span id="physicsStatus">ВКЛ</span></button>
+                <div style="flex: 1;"></div>
+                <div style="background: #f9f9f9; padding: 10px 20px; border-radius: 8px;">
+                    <strong>Узлов:</strong> ${nodes.length} | <strong>Связей:</strong> ${edges.length}
+                </div>
+            </div>
+            <div id="graphContainer" style="width: 100%; height: 600px; border: 2px solid #e0e0e0; border-radius: 10px;"></div>
+            <div style="margin-top: 15px; display: flex; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 20px; background: #55efc4; border-radius: 50%;"></div>
+                    <span>Готово</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 20px; background: #74b9ff; border-radius: 50%;"></div>
+                    <span>В работе</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 20px; background: #ffeaa7; border-radius: 50%;"></div>
+                    <span>Открыто</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 20px; background: #e74c3c; border-radius: 50%;"></div>
+                    <span>Входящая связь</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 20px; background: #3498db; border-radius: 50%;"></div>
+                    <span>Исходящая связь</span>
+                </div>
+            </div>
+        `;
+    }
+
+    const graphContainer = document.getElementById('graphContainer');
     
+    const data = {
+        nodes: new vis.DataSet(nodes),
+        edges: new vis.DataSet(edges)
+    };
+
+    const options = {
+        nodes: {
+            shape: 'box',
+            margin: 8,
+            widthConstraint: { maximum: 120 }
+        },
+        edges: {
+            smooth: { type: 'curvedCW', roundness: 0.15 },
+            arrows: { to: { enabled: true, scaleFactor: 0.4 } }
+        },
+        physics: {
+            enabled: true,
+            stabilization: { iterations: 200 },
+            barnesHut: {
+                gravitationalConstant: -10000,
+                springConstant: 0.04,
+                springLength: 150
+            }
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 100,
+            navigationButtons: true,
+            keyboard: true
+        },
+        layout: {
+            improvedLayout: true
+        }
+    };
+
+    if (network) {
+        network.destroy();
+    }
+
+    network = new vis.Network(graphContainer, data, options);
+
+    // Добавляем обработчик кликов
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            showIssueDetails(nodeId);
+        }
+    });
+}
+
+function fitGraph() {
+    if (network) {
+        network.fit({ animation: { duration: 1000, easingFunction: 'easeInOutQuad' } });
+    }
+}
+
+function toggleGraphPhysics() {
+    if (network) {
+        const currentPhysics = network.physics.options.enabled;
+        network.setOptions({ physics: { enabled: !currentPhysics } });
+        document.getElementById('physicsStatus').textContent = !currentPhysics ? 'ВКЛ' : 'ВЫКЛ';
+    }
+}
+
+// Модифицируем существующую функцию showTab
+const originalShowTab = window.showTab;
+window.showTab = function(tabName) {
+    originalShowTab.call(this, tabName);
+    
+    // Загружаем граф когда открывается таб "Связи"
+    if (tabName === 'links' && !network) {
+        loadGraphVisualization();
+    }
+};
