@@ -677,7 +677,14 @@ async function loadGraphVisualization() {
         const nodes = data.nodes.map(node => ({
             id: node.issue_key,
             label: node.issue_key,
-            title: `${node.issue_key}\n${node.summary}\nСтатус: ${node.status}`,
+            title: `<div style="max-width: 300px;">
+                <strong>${node.issue_key}</strong><br/>
+                <strong>Название:</strong> ${node.summary || '-'}<br/>
+                <strong>Статус:</strong> ${node.status || '-'}<br/>
+                <strong>Тип:</strong> ${node.issue_type || '-'}<br/>
+                <strong>Приоритет:</strong> ${node.priority || '-'}<br/>
+                <strong>Исполнитель:</strong> ${node.assignee || '-'}
+            </div>`,
             color: getNodeColor(node.status),
             font: { size: 12, color: '#333' },
             shape: 'box',
