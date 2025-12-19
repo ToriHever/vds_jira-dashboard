@@ -130,7 +130,6 @@ def get_statistics():
         WHERE sprint IS NOT NULL
         GROUP BY sprint
         ORDER BY sprint DESC
-        LIMIT 10
     """)
     by_sprint = cursor.fetchall()
     
