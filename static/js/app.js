@@ -722,7 +722,6 @@ async function loadGraphVisualization() {
     }
 }
 
-
 function getNodeColor(status) {
     if (!status) return '#dfe6e9';
     const s = status.toLowerCase();
@@ -800,7 +799,9 @@ function renderGraph(nodes, edges) {
         },
         interaction: {
             hover: true,
-            tooltipDelay: 100,
+            tooltipDelay: 200,
+            hideEdgesOnDrag: false,
+            hideEdgesOnZoom: false,
             navigationButtons: true,
             keyboard: true
         },
@@ -814,6 +815,52 @@ function renderGraph(nodes, edges) {
     }
 
     network = new vis.Network(graphContainer, data, options);
+
+    // Создаём кастомный тултип
+    let tooltipDiv = document.getElementById('graphTooltip');
+    if (!tooltipDiv) {
+        tooltipDiv = document.createElement('div');
+        tooltipDiv.id = 'graphTooltip';
+        tooltipDiv.style.cssText = `
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.6;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+            max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: pre-line;
+        `;
+        document.body.appendChild(tooltipDiv);
+    }
+
+    // Показываем тултип при наведении
+    network.on('hoverNode', function(params) {
+        const nodeId = params.node;
+        const node = nodes.find(n => n.id === nodeId);
+        if (node && node.title) {
+            tooltipDiv.innerHTML = node.title.replace(/\n/g, '<br>');
+            tooltipDiv.style.display = 'block';
+        }
+    });
+
+    // Скрываем при уходе курсора
+    network.on('blurNode', function() {
+        tooltipDiv.style.display = 'none';
+    });
+
+    // Двигаем тултип за курсором
+    graphContainer.addEventListener('mousemove', function(e) {
+        if (tooltipDiv.style.display === 'block') {
+            tooltipDiv.style.left = (e.pageX + 15) + 'px';
+            tooltipDiv.style.top = (e.pageY + 15) + 'px';
+        }
+    });
 
     // Добавляем обработчик кликов
     network.on('click', function(params) {
