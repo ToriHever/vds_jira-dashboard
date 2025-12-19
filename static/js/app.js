@@ -680,7 +680,7 @@ async function loadGraphVisualization() {
         
         // Подготавливаем узлы для Vis.js
         const nodes = data.nodes.map(node => {
-            // Формируем текстовый тултип (HTML не поддерживается напрямую)
+            // Формируем текстовый тултип
             const tooltip = [
                 `${node.issue_key}`,
                 `Название: ${node.summary || '-'}`,
@@ -690,14 +690,45 @@ async function loadGraphVisualization() {
                 `Исполнитель: ${node.assignee || '-'}`
             ].join('\n');
             
+            // Определяем форму по типу задачи
+            let shape = 'box'; // по умолчанию - обычная задача
+            let borderWidth = 2;
+            let shapeProperties = {};
+            
+            const issueType = (node.issue_type || '').toLowerCase();
+            
+            if (issueType.includes('epic') || issueType === 'эпик') {
+                shape = 'hexagon'; // Эпик - шестиугольник
+                borderWidth = 3;
+            } else if (issueType.includes('story') || issueType.includes('история')) {
+                shape = 'ellipse'; // История - овал
+                borderWidth = 2;
+            } else {
+                shape = 'box'; // Задача - прямоугольник
+                borderWidth = 2;
+            }
+            
             return {
                 id: node.issue_key,
                 label: node.issue_key,
                 title: tooltip,
-                color: getNodeColor(node.status),
-                font: { size: 12, color: '#333' },
-                shape: 'box',
-                margin: 8
+                color: {
+                    background: getNodeColor(node.status),
+                    border: getNodeBorderColor(node.status),
+                    highlight: {
+                        background: getNodeColor(node.status),
+                        border: '#667eea'
+                    },
+                    hover: {
+                        background: getNodeColor(node.status),
+                        border: '#667eea'
+                    }
+                },
+                font: { size: 12, color: '#333', bold: true },
+                shape: shape,
+                margin: 10,
+                borderWidth: borderWidth,
+                borderWidthSelected: 4
             };
         });
 
@@ -731,6 +762,15 @@ function getNodeColor(status) {
     return '#dfe6e9';
 }
 
+function getNodeBorderColor(status) {
+    if (!status) return '#b2bec3';
+    const s = status.toLowerCase();
+    if (s.includes('готов') || s.includes('done')) return '#00b894';
+    if (s.includes('работ') || s.includes('progress')) return '#0984e3';
+    if (s.includes('откр') || s.includes('open')) return '#fdcb6e';
+    return '#b2bec3';
+}
+
 function renderGraph(nodes, edges) {
     const container = document.getElementById('graphContainer');
     if (!container) {
@@ -746,26 +786,70 @@ function renderGraph(nodes, edges) {
                 </div>
             </div>
             <div id="graphContainer" style="width: 100%; height: 600px; border: 2px solid #e0e0e0; border-radius: 10px;"></div>
-            <div style="margin-top: 15px; display: flex; gap: 20px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 20px; background: #55efc4; border-radius: 50%;"></div>
-                    <span>Готово</span>
+            
+            <div style="margin-top: 20px; background: #f9f9f9; padding: 15px; border-radius: 10px;">
+                <h4 style="margin: 0 0 15px 0; color: #333;">Легенда:</h4>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong style="display: block; margin-bottom: 10px; color: #666;">Статусы (цвет):</strong>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 24px; height: 24px; background: #55efc4; border: 2px solid #00b894; border-radius: 4px;"></div>
+                                <span>Готово</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 24px; height: 24px; background: #74b9ff; border: 2px solid #0984e3; border-radius: 4px;"></div>
+                                <span>В работе</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 24px; height: 24px; background: #ffeaa7; border: 2px solid #fdcb6e; border-radius: 4px;"></div>
+                                <span>Открыто</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 24px; height: 24px; background: #dfe6e9; border: 2px solid #b2bec3; border-radius: 4px;"></div>
+                                <span>Другое</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <strong style="display: block; margin-bottom: 10px; color: #666;">Типы задач (форма):</strong>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" fill="#74b9ff" stroke="#0984e3" stroke-width="2"/>
+                                </svg>
+                                <span>Эпик (шестиугольник)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <ellipse cx="12" cy="12" rx="10" ry="7" fill="#74b9ff" stroke="#0984e3" stroke-width="2"/>
+                                </svg>
+                                <span>История (овал)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <rect x="4" y="7" width="16" height="10" fill="#74b9ff" stroke="#0984e3" stroke-width="2" rx="2"/>
+                                </svg>
+                                <span>Задача (прямоугольник)</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 20px; background: #74b9ff; border-radius: 50%;"></div>
-                    <span>В работе</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 20px; background: #ffeaa7; border-radius: 50%;"></div>
-                    <span>Открыто</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 20px; background: #e74c3c; border-radius: 50%;"></div>
-                    <span>Входящая связь</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 20px; background: #3498db; border-radius: 50%;"></div>
-                    <span>Исходящая связь</span>
+                
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <strong style="display: block; margin-bottom: 10px; color: #666;">Связи:</strong>
+                    <div style="display: flex; gap: 20px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #e74c3c;"></div>
+                            <span>Входящая связь</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #3498db;"></div>
+                            <span>Исходящая связь</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
