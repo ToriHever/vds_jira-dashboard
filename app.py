@@ -297,9 +297,16 @@ def get_graph_data():
     
     # Получаем все задачи, которые имеют связи
     cursor.execute("""
-        SELECT DISTINCT issue_key, summary, status, issue_type, priority
-        FROM jira_issues
-        WHERE issue_key IN (
+        SELECT DISTINCT 
+            i.issue_key, 
+            i.summary, 
+            i.status, 
+            i.issue_type, 
+            i.priority,
+            i.assignee,
+            i.sprint
+        FROM jira_issues i
+        WHERE i.issue_key IN (
             SELECT DISTINCT source_issue_key FROM jira_issue_links
             UNION
             SELECT DISTINCT target_issue_key FROM jira_issue_links
@@ -307,14 +314,16 @@ def get_graph_data():
     """)
     nodes = cursor.fetchall()
     
-    # Получаем все связи
+    # Получаем все связи с дополнительной информацией
     cursor.execute("""
         SELECT 
             source_issue_key,
             target_issue_key,
             link_type_name,
             direction_label,
-            direction
+            direction,
+            target_status,
+            target_priority
         FROM jira_issue_links
     """)
     edges = cursor.fetchall()
@@ -326,7 +335,6 @@ def get_graph_data():
         'nodes': nodes,
         'edges': edges
     })
-
 
 @app.template_filter('format_date')
 def format_date_filter(date_obj):
