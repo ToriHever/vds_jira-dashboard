@@ -543,15 +543,20 @@ return `${num}ч`;
 function showTab(tabName) {
     // Скрываем все табы
     document.querySelectorAll('.tab-content').forEach(content => {
-content.classList.remove('active');
+        content.classList.remove('active');
     });
     document.querySelectorAll('.tab').forEach(tab => {
-tab.classList.remove('active');
+        tab.classList.remove('active');
     });
 
     // Показываем выбранный таб
     document.getElementById(tabName).classList.add('active');
     event.target.classList.add('active');
+    
+    // Загружаем граф когда открывается таб "Связи"
+    if (tabName === 'links' && !network) {
+        loadGraphVisualization();
+    }
 }
 
 function showIssueDetails(issueKey) {
@@ -826,14 +831,3 @@ function toggleGraphPhysics() {
         document.getElementById('physicsStatus').textContent = !currentPhysics ? 'ВКЛ' : 'ВЫКЛ';
     }
 }
-
-// Модифицируем существующую функцию showTab
-const originalShowTab = window.showTab;
-window.showTab = function(tabName) {
-    originalShowTab.call(this, tabName);
-    
-    // Загружаем граф когда открывается таб "Связи"
-    if (tabName === 'links' && !network) {
-        loadGraphVisualization();
-    }
-};
