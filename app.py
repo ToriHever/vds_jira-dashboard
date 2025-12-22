@@ -90,6 +90,65 @@ def get_issues():
     
     return jsonify(issues)
 
+@app.route('/api/current-sprint-issues')
+def get_current_sprint_issues():
+    """API: Получить задачи текущего спринта"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Находим текущий спринт
+    cursor.execute("""
+        SELECT sprint
+        FROM jira_issues
+        WHERE sprint IS NOT NULL
+        GROUP BY sprint
+        ORDER BY CAST(SUBSTR(sprint, STRPOS(sprint, '#') + 1) AS INTEGER) DESC
+        LIMIT 1
+    """)
+    
+    current_sprint = cursor.fetchone()
+    
+    if not current_sprint:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Нет данных по спринтам', 'issues': []})
+    
+    sprint_name = current_sprint['sprint']
+    
+    # Получаем задачи этого спринта
+    cursor.execute("""
+        SELECT 
+            issue_key,
+            issue_type,
+            status,
+            summary,
+            assignee,
+            priority,
+            time_original_estimate,
+            time_spent,
+            sprint,
+            linked_issues
+        FROM jira_issues
+        WHERE sprint = %s
+        ORDER BY 
+            CASE 
+                WHEN status = 'В работе' THEN 1
+                WHEN status = 'Открыто' THEN 2
+                WHEN status = 'Готово' THEN 3
+                ELSE 4
+            END,
+            updated_date DESC
+    """, (sprint_name,))
+    
+    issues = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'sprint_name': sprint_name,
+        'issues': issues
+    })
+
 
 @app.route('/api/statistics')
 def get_statistics():
@@ -352,3 +411,4 @@ if __name__ == '__main__':
     print("🔄 Обновите данные с помощью: python jira_sync.py")
     print("-" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
+    

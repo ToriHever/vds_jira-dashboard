@@ -197,89 +197,89 @@ console.error('Ошибка загрузки статистики спринта
 
 function renderSprintLoadDetails(stats) {
     const statusText = {
-'light': 'Лёгкая загрузка',
-'normal': 'Нормальная загрузка',
-'full': 'Полная загрузка',
-'overloaded': 'Перегружен'
+        'light': 'Лёгкая загрузка',
+        'normal': 'Нормальная загрузка',
+        'full': 'Полная загрузка',
+        'overloaded': 'Перегружен'
     };
     
     const statusClass = {
-'light': 'status-light',
-'normal': 'status-normal',
-'full': 'status-full',
-'overloaded': 'status-overloaded'
+        'light': 'status-light',
+        'normal': 'status-normal',
+        'full': 'status-full',
+        'overloaded': 'status-overloaded'
     };
     
     const html = `
 <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
     <h3>${stats.sprint_name}</h3>
     <span class="status-indicator ${statusClass[stats.workload_status]}">
-${statusText[stats.workload_status]}
+        ${statusText[stats.workload_status]}
     </span>
 </div>
 
 <div class="sprint-load-container">
     <div class="sprint-metric">
-<h3>📊 Capacity спринта</h3>
-<div class="value">${stats.sprint_capacity}ч</div>
-<div class="subtext">2 недели работы</div>
+        <h3>📊 Capacity спринта</h3>
+        <div class="value">${stats.sprint_capacity}ч</div>
+        <div class="subtext">2 недели работы</div>
     </div>
     
     <div class="sprint-metric">
-<h3>📝 Оценка задач</h3>
-<div class="value">${stats.total_estimated}ч</div>
-<div class="subtext">${stats.workload_percent}% от capacity</div>
-<div class="progress-bar">
-    <div class="progress-fill ${stats.workload_percent > 100 ? 'danger' : stats.workload_percent > 90 ? 'warning' : ''}" 
- style="width: ${Math.min(stats.workload_percent, 100)}%">
-${stats.workload_percent}%
-    </div>
-</div>
-    </div>
-    
-    <div class="sprint-metric">
-<h3>⏱️ Затрачено времени</h3>
-<div class="value">${stats.total_spent}ч</div>
-<div class="subtext">${stats.time_used_percent}% от capacity</div>
-<div class="progress-bar">
-    <div class="progress-fill" style="width: ${Math.min(stats.time_used_percent, 100)}%">
-${stats.time_used_percent}%
-    </div>
-</div>
+        <h3>📝 Оценка задач</h3>
+        <div class="value">${stats.total_estimated}ч</div>
+        <div class="subtext">${stats.workload_percent}% от capacity</div>
+        <div class="progress-bar">
+            <div class="progress-fill ${stats.workload_percent > 100 ? 'danger' : stats.workload_percent > 90 ? 'warning' : ''}" 
+                 style="width: ${Math.min(stats.workload_percent, 100)}%">
+                ${stats.workload_percent}%
+            </div>
+        </div>
     </div>
     
     <div class="sprint-metric">
-<h3>✅ Прогресс задач</h3>
-<div class="value">${stats.completed_tasks}/${stats.total_tasks}</div>
-<div class="subtext">${stats.progress_percent}% завершено</div>
-<div class="progress-bar">
-    <div class="progress-fill" style="width: ${stats.progress_percent}%">
-${stats.progress_percent}%
-    </div>
-</div>
-    </div>
-    
-    <div class="sprint-metric">
-<h3>🔄 Активные задачи</h3>
-<div class="value">${stats.in_progress_tasks}</div>
-<div class="subtext">В работе сейчас</div>
+        <h3>⏱️ Затрачено времени</h3>
+        <div class="value">${stats.total_spent}ч</div>
+        <div class="subtext">${stats.time_used_percent}% от capacity</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: ${Math.min(stats.time_used_percent, 100)}%">
+                ${stats.time_used_percent}%
+            </div>
+        </div>
     </div>
     
     <div class="sprint-metric">
-<h3>📋 Открытые задачи</h3>
-<div class="value">${stats.open_tasks}</div>
-<div class="subtext">Ожидают начала</div>
+        <h3>✅ Прогресс задач</h3>
+        <div class="value">${stats.completed_tasks}/${stats.total_tasks}</div>
+        <div class="subtext">${stats.progress_percent}% завершено</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: ${stats.progress_percent}%">
+                ${stats.progress_percent}%
+            </div>
+        </div>
+    </div>
+    
+    <div class="sprint-metric">
+        <h3>🔄 Активные задачи</h3>
+        <div class="value">${stats.in_progress_tasks}</div>
+        <div class="subtext">В работе сейчас</div>
+    </div>
+    
+    <div class="sprint-metric">
+        <h3>📋 Открытые задачи</h3>
+        <div class="value">${stats.open_tasks}</div>
+        <div class="subtext">Ожидают начала</div>
     </div>
     
     <div class="sprint-metric" style="grid-column: span 2;">
-<h3>⚡ Оставшаяся capacity</h3>
-<div class="value">${stats.remaining_capacity}ч</div>
-<div class="subtext">
-    Осталось работы: ${stats.remaining_work}ч
-    ${stats.remaining_work > stats.remaining_capacity ? 
-'<br><span style="color: #e74c3c; font-weight: bold;">⚠️ Работы больше чем capacity!</span>' : 
-'<br><span style="color: #27ae60;">✓ В пределах capacity</span>'}
-</div>
+        <h3>⚡ Оставшаяся capacity</h3>
+        <div class="value">${stats.remaining_capacity}ч</div>
+        <div class="subtext">
+            Осталось работы: ${stats.remaining_work}ч
+            ${stats.remaining_work > stats.remaining_capacity ? 
+                '<br><span style="color: #e74c3c; font-weight: bold;">⚠️ Работы больше чем capacity!</span>' : 
+                '<br><span style="color: #27ae60;">✓ В пределах capacity</span>'}
+        </div>
     </div>
 </div>
 
@@ -287,10 +287,17 @@ ${stats.progress_percent}%
     <h3>💡 Рекомендации</h3>
     ${getRecommendations(stats)}
 </div>
+
+<div style="margin-top: 30px;">
+    <div id="sprintIssuesTable"></div>
+</div>
     `;
     
     document.getElementById('sprintLoadDetails').innerHTML = html;
     document.getElementById('sprintLoadTitle').textContent = `⚡ Загруженность: ${stats.sprint_name}`;
+    
+    // Загружаем список задач
+    loadCurrentSprintIssues();
 }
 
 function getRecommendations(stats) {
@@ -557,6 +564,12 @@ function showTab(tabName) {
     if (tabName === 'links' && !network) {
         loadGraphVisualization();
     }
+
+     // Загружаем задачи спринта при открытии вкладки
+    if (tabName === 'sprintLoad') {
+        loadSprintStats(); // это загрузит метрики и вызовет loadCurrentSprintIssues()
+    }
+
 }
 
 function showIssueDetails(issueKey) {
@@ -967,4 +980,96 @@ function toggleGraphPhysics() {
         network.setOptions({ physics: { enabled: !currentPhysics } });
         document.getElementById('physicsStatus').textContent = !currentPhysics ? 'ВКЛ' : 'ВЫКЛ';
     }
+}
+
+async function loadCurrentSprintIssues() {
+    try {
+        const response = await fetch('/api/current-sprint-issues');
+        const data = await response.json();
+        
+        if (data.error || !data.issues || data.issues.length === 0) {
+            document.getElementById('sprintIssuesTable').innerHTML = 
+                '<p style="text-align: center; color: #999; padding: 20px;">Нет задач в текущем спринте</p>';
+            return;
+        }
+        
+        renderSprintIssuesTable(data.issues, data.sprint_name);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки задач спринта:', error);
+        document.getElementById('sprintIssuesTable').innerHTML = 
+            '<p style="text-align: center; color: #e74c3c; padding: 20px;">Ошибка загрузки задач</p>';
+    }
+}
+
+function renderSprintIssuesTable(issues, sprintName) {
+    // Группируем по статусу
+    const byStatus = {
+        'В работе': [],
+        'Открыто': [],
+        'Готово': [],
+        'Другое': []
+    };
+    
+    issues.forEach(issue => {
+        const status = issue.status || 'Другое';
+        if (byStatus[status]) {
+            byStatus[status].push(issue);
+        } else {
+            byStatus['Другое'].push(issue);
+        }
+    });
+    
+    let html = `
+        <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h3>📋 Задачи спринта: ${sprintName}</h3>
+            <p style="color: #666;">Всего задач: ${issues.length}</p>
+        </div>
+    `;
+    
+    // Отображаем по статусам
+    for (const [status, statusIssues] of Object.entries(byStatus)) {
+        if (statusIssues.length === 0) continue;
+        
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e0e0e0;">
+                    <span class="badge ${getStatusClass(status)}">${status}</span>
+                    <span style="color: #999; font-size: 0.9em; margin-left: 10px;">(${statusIssues.length})</span>
+                </h3>
+                <div class='issuesTable-container'>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 100px;">Ключ</th>
+                                <th style="width: 100px;">Тип</th>
+                                <th>Описание</th>
+                                <th style="width: 150px;">Исполнитель</th>
+                                <th style="width: 100px;">Приоритет</th>
+                                <th style="width: 80px;">Оценка</th>
+                                <th style="width: 80px;">Затрачено</th>
+                                <th style="width: 100px;">Связи</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${statusIssues.map(issue => `
+                                <tr class="${getRowClass(issue.issue_type)}">
+                                    <td><a href="#" class="issue-key" onclick="showIssueDetails('${issue.issue_key}')">${issue.issue_key}</a></td>
+                                    <td>${issue.issue_type || '-'}</td>
+                                    <td>${issue.summary || '-'}</td>
+                                    <td>${issue.assignee || '-'}</td>
+                                    <td class="${getPriorityClass(issue.priority)}">${issue.priority || '-'}</td>
+                                    <td>${formatHours(issue.time_original_estimate)}</td>
+                                    <td>${formatHours(issue.time_spent)}</td>
+                                    <td>${renderLinkedIssues(issue.linked_issues)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
+    document.getElementById('sprintIssuesTable').innerHTML = html;
 }
