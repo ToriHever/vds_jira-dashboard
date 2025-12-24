@@ -237,7 +237,6 @@ def get_current_sprint_stats():
             FROM jira_issues
             WHERE sprint IS NOT NULL
             GROUP BY sprint
-            -- ИСПРАВЛЕНИЕ: INSTR → STRPOS
             ORDER BY CAST(SUBSTR(sprint, STRPOS(sprint, '#') + 1) AS INTEGER) DESC
             LIMIT 1)
     """)
@@ -354,7 +353,7 @@ def get_graph_data():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Получаем все задачи, которые имеют связи
+    # ИЗМЕНЕНО: Получаем все задачи, которые имеют связи ИЛИ являются эпиками
     cursor.execute("""
         SELECT DISTINCT 
             i.issue_key, 
@@ -370,6 +369,8 @@ def get_graph_data():
             UNION
             SELECT DISTINCT target_issue_key FROM jira_issue_links
         )
+        OR LOWER(i.issue_type) LIKE '%epic%'
+        OR LOWER(i.issue_type) = 'эпик'
     """)
     nodes = cursor.fetchall()
     
@@ -411,4 +412,3 @@ if __name__ == '__main__':
     print("🔄 Обновите данные с помощью: python jira_sync.py")
     print("-" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
-    
