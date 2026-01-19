@@ -3,7 +3,14 @@ let sortColumn = null;
 let sortDirection = 'asc';
 let network = null;
 let graphData = { nodes: [], edges: [] };
-    
+
+// URL вашего Jira сервера
+const JIRA_BASE_URL = 'https://jira.ddos-guard.net';
+
+// Функция для генерации ссылки на задачу
+function getJiraIssueLink(issueKey) {
+    return `${JIRA_BASE_URL}/browse/${issueKey}`;
+}
 
 // Функция для определения CSS класса строки по типу задачи
 function getRowClass(issueType) {
@@ -22,28 +29,23 @@ function getRowClass(issueType) {
     return '';
 }
 
-// 1. СНАЧАЛА функции сортировки
 function getSortIcon(column) {
     if (sortColumn === column) {
-return sortDirection === 'asc' ? '▲' : '▼';
+        return sortDirection === 'asc' ? '▲' : '▼';
     }
     return '⇅';
 }
     
 function sortTable(column) {
-    // Если кликнули на ту же колонку - меняем направление
     if (sortColumn === column) {
-sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
-sortColumn = column;
-sortDirection = 'asc';
+        sortColumn = column;
+        sortDirection = 'asc';
     }
-    
-    // Применяем фильтры если они есть
     applyTableFilters();
 }
 
-// Текущие активные фильтры
 let activeFilters = {
     type: '',
     status: '',
@@ -52,146 +54,124 @@ let activeFilters = {
 };
 
 function applyTableFilters() {
-    // Читаем значения фильтров
     activeFilters.type = document.getElementById('filterType')?.value || '';
     activeFilters.status = document.getElementById('filterStatus')?.value || '';
     activeFilters.priority = document.getElementById('filterPriority')?.value || '';
     activeFilters.sprint = document.getElementById('filterSprint')?.value || '';
     
-    // Фильтруем задачи
     let filtered = allIssues.filter(issue => {
-if (activeFilters.type && issue.issue_type !== activeFilters.type) return false;
-if (activeFilters.status && issue.status !== activeFilters.status) return false;
-if (activeFilters.priority && issue.priority !== activeFilters.priority) return false;
-if (activeFilters.sprint && issue.sprint !== activeFilters.sprint) return false;
-return true;
+        if (activeFilters.type && issue.issue_type !== activeFilters.type) return false;
+        if (activeFilters.status && issue.status !== activeFilters.status) return false;
+        if (activeFilters.priority && issue.priority !== activeFilters.priority) return false;
+        if (activeFilters.sprint && issue.sprint !== activeFilters.sprint) return false;
+        return true;
     });
     
-    // Применяем текущую сортировку если есть
     if (sortColumn) {
-filtered = [...filtered].sort((a, b) => {
-    let aVal = a[sortColumn];
-    let bVal = b[sortColumn];
-    
-    if (aVal === null || aVal === undefined || aVal === '') aVal = '';
-    if (bVal === null || bVal === undefined || bVal === '') bVal = '';
-    
-    if (sortColumn === 'time_original_estimate' || sortColumn === 'time_spent') {
-aVal = parseFloat(aVal) || 0;
-bVal = parseFloat(bVal) || 0;
+        filtered = [...filtered].sort((a, b) => {
+            let aVal = a[sortColumn];
+            let bVal = b[sortColumn];
+            
+            if (aVal === null || aVal === undefined || aVal === '') aVal = '';
+            if (bVal === null || bVal === undefined || bVal === '') bVal = '';
+            
+            if (sortColumn === 'time_original_estimate' || sortColumn === 'time_spent') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            }
+            
+            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
     }
     
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-});
-    }
-    
-    // Обновляем отображение
     renderIssuesTable(filtered);
     
-    // Восстанавливаем значения фильтров (они сбрасываются при перерисовке)
     if (document.getElementById('filterType')) {
-document.getElementById('filterType').value = activeFilters.type;
-document.getElementById('filterStatus').value = activeFilters.status;
-document.getElementById('filterPriority').value = activeFilters.priority;
-document.getElementById('filterSprint').value = activeFilters.sprint;
+        document.getElementById('filterType').value = activeFilters.type;
+        document.getElementById('filterStatus').value = activeFilters.status;
+        document.getElementById('filterPriority').value = activeFilters.priority;
+        document.getElementById('filterSprint').value = activeFilters.sprint;
     }
 }
 
 function clearTableFilters() {
-    // Сбрасываем фильтры
-    activeFilters = {
-type: '',
-status: '',
-priority: '',
-sprint: ''
-    };
-    
-    // Сбрасываем сортировку
+    activeFilters = { type: '', status: '', priority: '', sprint: '' };
     sortColumn = null;
     sortDirection = 'asc';
-    
-    // Показываем все задачи
     renderIssuesTable(allIssues);
 }
     
-// 2. ПОТОМ функция loadData
 async function loadData() {
     try {
-// Загружаем статистику
-const statsResponse = await fetch('/api/statistics');
-const stats = await statsResponse.json();
+        const statsResponse = await fetch('/api/statistics');
+        const stats = await statsResponse.json();
     
-document.getElementById('totalIssues').textContent = stats.total;
-document.getElementById('totalLinks').textContent = stats.total_links;
+        document.getElementById('totalIssues').textContent = stats.total;
+        document.getElementById('totalLinks').textContent = stats.total_links;
     
-const inProgressCount = stats.by_status.find(s => s.status === 'В работе')?.count || 0;
-const completedCount = stats.by_status.find(s => s.status === 'Готово')?.count || 0;
+        const inProgressCount = stats.by_status.find(s => s.status === 'В работе')?.count || 0;
+        const completedCount = stats.by_status.find(s => s.status === 'Готово')?.count || 0;
     
-document.getElementById('inProgress').textContent = inProgressCount;
-document.getElementById('completed').textContent = completedCount;
+        document.getElementById('inProgress').textContent = inProgressCount;
+        document.getElementById('completed').textContent = completedCount;
     
-// Загружаем задачи
-const issuesResponse = await fetch('/api/issues');
-allIssues = await issuesResponse.json();
+        const issuesResponse = await fetch('/api/issues');
+        allIssues = await issuesResponse.json();
     
-renderIssuesTable(allIssues);
-renderSprintsTable(stats.by_sprint);
-renderStatusTable(stats.by_status);
+        renderIssuesTable(allIssues);
+        renderSprintsTable(stats.by_sprint);
+        renderStatusTable(stats.by_status);
     
-// Обновляем время последней синхронизации
-if (allIssues.length > 0) {
-    document.getElementById('lastSync').textContent = 
-`Последняя синхронизация: ${allIssues[0].last_synced}`;
-}
+        if (allIssues.length > 0) {
+            document.getElementById('lastSync').textContent = 
+                `Последняя синхронизация: ${allIssues[0].last_synced}`;
+        }
 
-await loadSprintStats();
+        await loadSprintStats();
     
     } catch (error) {
-console.error('Ошибка загрузки данных:', error);
-alert('Ошибка загрузки данных. Проверьте подключение к серверу.');
+        console.error('Ошибка загрузки данных:', error);
+        alert('Ошибка загрузки данных. Проверьте подключение к серверу.');
     }
 }
 
 async function loadSprintStats() {
     try {
-const response = await fetch('/api/current-sprint-stats');
-const stats = await response.json();
+        const response = await fetch('/api/current-sprint-stats');
+        const stats = await response.json();
 
-if (stats.error) {
-    document.getElementById('sprintLoadPercent').textContent = 'N/A';
-    document.getElementById('sprintName').textContent = 'Нет данных';
-    return;
-}
+        if (stats.error) {
+            document.getElementById('sprintLoadPercent').textContent = 'N/A';
+            document.getElementById('sprintName').textContent = 'Нет данных';
+            return;
+        }
 
-// Обновляем карточку
-document.getElementById('sprintLoadPercent').textContent = `${stats.workload_percent}%`;
-document.getElementById('sprintName').textContent = stats.sprint_name;
+        document.getElementById('sprintLoadPercent').textContent = `${stats.workload_percent}%`;
+        document.getElementById('sprintName').textContent = stats.sprint_name;
 
-// Иконка и цвет в зависимости от загруженности
-const icon = document.getElementById('sprintLoadIcon');
-const card = document.getElementById('sprintLoadCard');
+        const icon = document.getElementById('sprintLoadIcon');
+        const card = document.getElementById('sprintLoadCard');
 
-if (stats.workload_status === 'overloaded') {
-    icon.textContent = '🔴';
-    card.style.borderLeft = '5px solid #e74c3c';
-} else if (stats.workload_status === 'full') {
-    icon.textContent = '🟡';
-    card.style.borderLeft = '5px solid #f39c12';
-} else if (stats.workload_status === 'normal') {
-    icon.textContent = '🟢';
-    card.style.borderLeft = '5px solid #27ae60';
-} else {
-    icon.textContent = '⚪';
-    card.style.borderLeft = '5px solid #95a5a6';
-}
+        if (stats.workload_status === 'overloaded') {
+            icon.textContent = '🔴';
+            card.style.borderLeft = '5px solid #e74c3c';
+        } else if (stats.workload_status === 'full') {
+            icon.textContent = '🟡';
+            card.style.borderLeft = '5px solid #f39c12';
+        } else if (stats.workload_status === 'normal') {
+            icon.textContent = '🟢';
+            card.style.borderLeft = '5px solid #27ae60';
+        } else {
+            icon.textContent = '⚪';
+            card.style.borderLeft = '5px solid #95a5a6';
+        }
 
-// Детальная статистика
-renderSprintLoadDetails(stats);
+        renderSprintLoadDetails(stats);
 
     } catch (error) {
-console.error('Ошибка загрузки статистики спринта:', error);
+        console.error('Ошибка загрузки статистики спринта:', error);
     }
 }
 
@@ -295,8 +275,6 @@ function renderSprintLoadDetails(stats) {
     
     document.getElementById('sprintLoadDetails').innerHTML = html;
     document.getElementById('sprintLoadTitle').textContent = `⚡ Загруженность: ${stats.sprint_name}`;
-    
-    // Загружаем список задач
     loadCurrentSprintIssues();
 }
 
@@ -304,35 +282,33 @@ function getRecommendations(stats) {
     const recommendations = [];
     
     if (stats.workload_percent > 100) {
-recommendations.push('🔴 <strong>Спринт перегружен!</strong> Оценка задач превышает capacity на ' + (stats.workload_percent - 100).toFixed(1) + '%. Рекомендуется перенести часть задач.');
+        recommendations.push('🔴 <strong>Спринт перегружен!</strong> Оценка задач превышает capacity на ' + (stats.workload_percent - 100).toFixed(1) + '%. Рекомендуется перенести часть задач.');
     } else if (stats.workload_percent > 90) {
-recommendations.push('🟡 <strong>Высокая загрузка.</strong> Спринт загружен почти полностью. Будьте осторожны с добавлением новых задач.');
+        recommendations.push('🟡 <strong>Высокая загрузка.</strong> Спринт загружен почти полностью. Будьте осторожны с добавлением новых задач.');
     } else if (stats.workload_percent < 70) {
-recommendations.push('⚪ <strong>Низкая загрузка.</strong> В спринте есть место для дополнительных задач (~' + (80 - stats.total_estimated).toFixed(1) + 'ч).');
+        recommendations.push('⚪ <strong>Низкая загрузка.</strong> В спринте есть место для дополнительных задач (~' + (80 - stats.total_estimated).toFixed(1) + 'ч).');
     } else {
-recommendations.push('🟢 <strong>Оптимальная загрузка.</strong> Спринт загружен хорошо.');
+        recommendations.push('🟢 <strong>Оптимальная загрузка.</strong> Спринт загружен хорошо.');
     }
     
     if (stats.remaining_work > stats.remaining_capacity && stats.progress_percent < 80) {
-recommendations.push('⚠️ <strong>Риск не завершить спринт.</strong> Оставшейся работы больше чем свободного времени.');
+        recommendations.push('⚠️ <strong>Риск не завершить спринт.</strong> Оставшейся работы больше чем свободного времени.');
     }
     
     if (stats.open_tasks > stats.in_progress_tasks * 2) {
-recommendations.push('📋 <strong>Много задач в очереди.</strong> Рекомендуется начать работу над открытыми задачами.');
+        recommendations.push('📋 <strong>Много задач в очереди.</strong> Рекомендуется начать работу над открытыми задачами.');
     }
     
     if (stats.progress_percent > 70 && stats.time_used_percent < 70) {
-recommendations.push('✅ <strong>Отличный темп!</strong> Команда завершает задачи эффективно.');
+        recommendations.push('✅ <strong>Отличный темп!</strong> Команда завершает задачи эффективно.');
     }
     
     return recommendations.length > 0 
-? '<ul>' + recommendations.map(r => '<li style="margin-bottom: 10px;">' + r + '</li>').join('') + '</ul>'
-: '<p>Всё идёт по плану! 🎯</p>';
+        ? '<ul>' + recommendations.map(r => '<li style="margin-bottom: 10px;">' + r + '</li>').join('') + '</ul>'
+        : '<p>Всё идёт по плану! 🎯</p>';
 }
 
-    
-    function renderIssuesTable(issues) {
-    // Получаем уникальные значения для фильтров
+function renderIssuesTable(issues) {
     const types = [...new Set(allIssues.map(i => i.issue_type).filter(Boolean))].sort();
     const statuses = [...new Set(allIssues.map(i => i.status).filter(Boolean))].sort();
     const priorities = [...new Set(allIssues.map(i => i.priority).filter(Boolean))].sort();
@@ -341,160 +317,126 @@ recommendations.push('✅ <strong>Отличный темп!</strong> Коман
     const html = `
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
     <select id="filterType" onchange="applyTableFilters()" style="padding: 10px; border-radius: 5px; border: 2px solid #e0e0e0;">
-<option value="">Все типы</option>
-${types.map(t => `<option value="${t}">${t}</option>`).join('')}
+        <option value="">Все типы</option>
+        ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
     </select>
-    
     <select id="filterStatus" onchange="applyTableFilters()" style="padding: 10px; border-radius: 5px; border: 2px solid #e0e0e0;">
-<option value="">Все статусы</option>
-${statuses.map(s => `<option value="${s}">${s}</option>`).join('')}
+        <option value="">Все статусы</option>
+        ${statuses.map(s => `<option value="${s}">${s}</option>`).join('')}
     </select>
-    
     <select id="filterPriority" onchange="applyTableFilters()" style="padding: 10px; border-radius: 5px; border: 2px solid #e0e0e0;">
-<option value="">Все приоритеты</option>
-${priorities.map(p => `<option value="${p}">${p}</option>`).join('')}
+        <option value="">Все приоритеты</option>
+        ${priorities.map(p => `<option value="${p}">${p}</option>`).join('')}
     </select>
-    
     <select id="filterSprint" onchange="applyTableFilters()" style="padding: 10px; border-radius: 5px; border: 2px solid #e0e0e0;">
-<option value="">Все спринты</option>
-${sprints.map(s => `<option value="${s}">${s}</option>`).join('')}
+        <option value="">Все спринты</option>
+        ${sprints.map(s => `<option value="${s}">${s}</option>`).join('')}
     </select>
-    
-    <button onclick="clearTableFilters()" class="refresh-btn" style="padding: 10px 20px;">
-🔄 Сбросить фильтры
-    </button>
+    <button onclick="clearTableFilters()" class="refresh-btn" style="padding: 10px 20px;">🔄 Сбросить фильтры</button>
 </div>
 <div class='issuesTable-container'>
     <table>
         <thead>
-    <tr>
-        <th onclick="sortTable('issue_key')" style="cursor: pointer;" title="Кликните для сортировки">
-    Ключ ${getSortIcon('issue_key')}
-        </th>
-        <th style="cursor: default;">
-    Тип
-        </th>
-        <th style="cursor: default;">
-    Статус
-        </th>
-        <th onclick="sortTable('summary')" style="cursor: pointer;" title="Кликните для сортировки">
-    Описание ${getSortIcon('summary')}
-        </th>
-        <th onclick="sortTable('assignee')" style="cursor: pointer;" title="Кликните для сортировки">
-    Исполнитель ${getSortIcon('assignee')}
-        </th>
-        <th style="cursor: default;">
-    Приоритет
-        </th>
-        <th onclick="sortTable('time_original_estimate')" style="cursor: pointer;" title="Кликните для сортировки">
-    Оценка ${getSortIcon('time_original_estimate')}
-        </th>
-        <th onclick="sortTable('time_spent')" style="cursor: pointer;" title="Кликните для сортировки">
-    Затрачено ${getSortIcon('time_spent')}
-        </th>
-        <th style="cursor: default;">
-    Спринт
-        </th>
-        <th style="cursor: default;">Связи</th>
-    </tr>
+            <tr>
+                <th onclick="sortTable('issue_key')" style="cursor: pointer;" title="Кликните для сортировки">Ключ ${getSortIcon('issue_key')}</th>
+                <th style="cursor: default;">Тип</th>
+                <th style="cursor: default;">Статус</th>
+                <th onclick="sortTable('summary')" style="cursor: pointer;" title="Кликните для сортировки">Описание ${getSortIcon('summary')}</th>
+                <th onclick="sortTable('assignee')" style="cursor: pointer;" title="Кликните для сортировки">Исполнитель ${getSortIcon('assignee')}</th>
+                <th style="cursor: default;">Приоритет</th>
+                <th onclick="sortTable('time_original_estimate')" style="cursor: pointer;" title="Кликните для сортировки">Оценка ${getSortIcon('time_original_estimate')}</th>
+                <th onclick="sortTable('time_spent')" style="cursor: pointer;" title="Кликните для сортировки">Затрачено ${getSortIcon('time_spent')}</th>
+                <th style="cursor: default;">Спринт</th>
+                <th style="cursor: default;">Связи</th>
+            </tr>
         </thead>
         <tbody>
-    ${issues.map(issue => `
-        <tr>
-        <tr class="${getRowClass(issue.issue_type)}">
-            <td><a href="#" class="issue-key" onclick="showIssueDetails('${issue.issue_key}')">${issue.issue_key}</a></td>
-            <td>${issue.issue_type || '-'}</td>
-            <td><span class="badge ${getStatusClass(issue.status)}">${issue.status || '-'}</span></td>
-            <td>${issue.summary || '-'}</td>
-            <td>${issue.assignee || '-'}</td>
-            <td class="${getPriorityClass(issue.priority)}">${issue.priority || '-'}</td>
-            <td>${formatHours(issue.time_original_estimate)}</td>
-            <td>${formatHours(issue.time_spent)}</td>
-            <td>${issue.sprint || '-'}</td>
-            <td>${renderLinkedIssues(issue.linked_issues)}</td>
-        </tr>
-    `).join('')}
+            ${issues.map(issue => `
+                <tr class="${getRowClass(issue.issue_type)}">
+                    <td><a href="${getJiraIssueLink(issue.issue_key)}" class="issue-key" target="_blank">${issue.issue_key}</a></td>
+                    <td>${issue.issue_type || '-'}</td>
+                    <td><span class="badge ${getStatusClass(issue.status)}">${issue.status || '-'}</span></td>
+                    <td>${issue.summary || '-'}</td>
+                    <td>${issue.assignee || '-'}</td>
+                    <td class="${getPriorityClass(issue.priority)}">${issue.priority || '-'}</td>
+                    <td>${formatHours(issue.time_original_estimate)}</td>
+                    <td>${formatHours(issue.time_spent)}</td>
+                    <td>${issue.sprint || '-'}</td>
+                    <td>${renderLinkedIssues(issue.linked_issues)}</td>
+                </tr>
+            `).join('')}
         </tbody>
     </table>
-</div>
-    `;
+</div>`;
     document.getElementById('issuesTable').innerHTML = html;
 }
 
 function renderSprintsTable(sprints) {
-// Сортируем спринты по номеру из названия (например #24)
-const sortedSprints = [...sprints].sort((a, b) => {
-    // Извлекаем номер спринта из названия (например: "MAR 08.12.25 - 22.12.25 #24")
-    const getSprintNumber = (sprintName) => {
-if (!sprintName) return 0;
-const match = sprintName.match(/#(\d+)/);
-return match ? parseInt(match[1]) : 0;
-    };
-    
-    const numA = getSprintNumber(a.sprint);
-    const numB = getSprintNumber(b.sprint);
-    
-    return numB - numA; // Убывание (от большего к меньшему)
-});
+    const sortedSprints = [...sprints].sort((a, b) => {
+        const getSprintNumber = (sprintName) => {
+            if (!sprintName) return 0;
+            const match = sprintName.match(/#(\d+)/);
+            return match ? parseInt(match[1]) : 0;
+        };
+        return getSprintNumber(b.sprint) - getSprintNumber(a.sprint);
+    });
 
-const html = `
-    <table>
-<thead>
-    <tr>
-<th>Спринт</th>
-<th>Задач</th>
-<th>Оценка (часы)</th>
-<th>Затрачено (часы)</th>
-    </tr>
-</thead>
-<tbody>
-    ${sortedSprints.map(sprint => {
-// Форматируем часы без .00
-const formatSprintHours = (hours) => {
-    if (!hours) return '0';
-    const num = Number(hours);
-    return num % 1 === 0 ? num.toString() : num.toFixed(2);
-};
-
-return `
-    <tr>
-<td>${sprint.sprint}</td>
-<td>${sprint.count}</td>
-<td>${formatSprintHours(sprint.total_estimate)}</td>
-<td>${formatSprintHours(sprint.total_spent)}</td>
-    </tr>
-`;
-    }).join('')}
-</tbody>
-    </table>
-`;
-document.getElementById('sprintsTable').innerHTML = html;
-    }
+    const html = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Спринт</th>
+                    <th>Задач</th>
+                    <th>Оценка (часы)</th>
+                    <th>Затрачено (часы)</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${sortedSprints.map(sprint => {
+                    const formatSprintHours = (hours) => {
+                        if (!hours) return '0';
+                        const num = Number(hours);
+                        return num % 1 === 0 ? num.toString() : num.toFixed(2);
+                    };
+                    return `
+                        <tr>
+                            <td>${sprint.sprint}</td>
+                            <td>${sprint.count}</td>
+                            <td>${formatSprintHours(sprint.total_estimate)}</td>
+                            <td>${formatSprintHours(sprint.total_spent)}</td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+    document.getElementById('sprintsTable').innerHTML = html;
+}
 
 function renderStatusTable(statuses) {
     const html = `
-<table>
-    <thead>
-<tr>
-    <th>Статус</th>
-    <th>Количество</th>
-    <th>Процент</th>
-</tr>
-    </thead>
-    <tbody>
-${statuses.map(status => {
-    const total = statuses.reduce((sum, s) => sum + s.count, 0);
-    const percent = ((status.count / total) * 100).toFixed(1);
-    return `
-<tr>
-    <td><span class="badge ${getStatusClass(status.status)}">${status.status}</span></td>
-    <td>${status.count}</td>
-    <td>${percent}%</td>
-</tr>
-    `;
-}).join('')}
-    </tbody>
-</table>
+        <table>
+            <thead>
+                <tr>
+                    <th>Статус</th>
+                    <th>Количество</th>
+                    <th>Процент</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${statuses.map(status => {
+                    const total = statuses.reduce((sum, s) => sum + s.count, 0);
+                    const percent = ((status.count / total) * 100).toFixed(1);
+                    return `
+                        <tr>
+                            <td><span class="badge ${getStatusClass(status.status)}">${status.status}</span></td>
+                            <td>${status.count}</td>
+                            <td>${percent}%</td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
     `;
     document.getElementById('statusTable').innerHTML = html;
 }
@@ -502,11 +444,11 @@ ${statuses.map(status => {
 function renderLinkedIssues(linkedIssues) {
     if (!linkedIssues || linkedIssues.length === 0) return '-';
     return `
-<div class="linked-issues">
-    ${linkedIssues.map(key => 
-`<span class="linked-issue-badge">${key}</span>`
-    ).join('')}
-</div>
+        <div class="linked-issues">
+            ${linkedIssues.map(key => 
+                `<a href="${getJiraIssueLink(key)}" target="_blank" class="linked-issue-badge" style="text-decoration: none;">${key}</a>`
+            ).join('')}
+        </div>
     `;
 }
 
@@ -529,171 +471,124 @@ function getPriorityClass(priority) {
 }
 
 function formatHours(hours) {
-    if (hours === null || hours === undefined || hours === '' || hours === 'null') {
-return '-';
-    }
-    if (typeof hours === 'object') {
-return '-';
-    }
+    if (hours === null || hours === undefined || hours === '' || hours === 'null') return '-';
+    if (typeof hours === 'object') return '-';
     const num = Number(hours);
-    if (isNaN(num) || !isFinite(num)) {
-return '-';
-    }
-    
-    // Убираем .00 если число целое
-    if (num % 1 === 0) {
-return `${num}ч`;
-    }
+    if (isNaN(num) || !isFinite(num)) return '-';
+    if (num % 1 === 0) return `${num}ч`;
     return `${num.toFixed(2)}ч`;
 }
 
 function showTab(tabName) {
-    // Скрываем все табы
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-
-    // Показываем выбранный таб
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
     document.getElementById(tabName).classList.add('active');
     event.target.classList.add('active');
     
-    // Загружаем граф когда открывается таб "Связи"
     if (tabName === 'links' && !network) {
         loadGraphVisualization();
     }
-
-     // Загружаем задачи спринта при открытии вкладки
     if (tabName === 'sprintLoad') {
-        loadSprintStats(); // это загрузит метрики и вызовет loadCurrentSprintIssues()
+        loadSprintStats();
     }
-
 }
 
 function showIssueDetails(issueKey) {
-    alert(`Детали задачи ${issueKey}\n\nФункция в разработке. Скоро здесь будет подробная информация о задаче и её связях.`);
+    window.open(getJiraIssueLink(issueKey), '_blank');
 }
 
-// Поиск по задачам
 document.addEventListener('DOMContentLoaded', () => {
     const searchBox = document.getElementById('searchBox');
     searchBox.addEventListener('input', (e) => {
-const query = e.target.value.toLowerCase();
-
-// Сначала применяем фильтры
-let filtered = allIssues.filter(issue => {
-    if (activeFilters.type && issue.issue_type !== activeFilters.type) return false;
-    if (activeFilters.status && issue.status !== activeFilters.status) return false;
-    if (activeFilters.priority && issue.priority !== activeFilters.priority) return false;
-    if (activeFilters.sprint && issue.sprint !== activeFilters.sprint) return false;
-    return true;
-});
-
-// Затем применяем поиск
-if (query) {
-    filtered = filtered.filter(issue => 
-issue.issue_key.toLowerCase().includes(query) ||
-(issue.summary && issue.summary.toLowerCase().includes(query)) ||
-(issue.assignee && issue.assignee.toLowerCase().includes(query))
-    );
-}
-
-// Применяем сортировку если есть
-if (sortColumn) {
-    filtered = [...filtered].sort((a, b) => {
-let aVal = a[sortColumn];
-let bVal = b[sortColumn];
-
-if (aVal === null || aVal === undefined || aVal === '') aVal = '';
-if (bVal === null || bVal === undefined || bVal === '') bVal = '';
-
-if (sortColumn === 'time_original_estimate' || sortColumn === 'time_spent') {
-    aVal = parseFloat(aVal) || 0;
-    bVal = parseFloat(bVal) || 0;
-}
-
-if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-return 0;
-    });
-}
-
-renderIssuesTable(filtered);
-
-// Восстанавливаем значения фильтров
-if (document.getElementById('filterType')) {
-    document.getElementById('filterType').value = activeFilters.type;
-    document.getElementById('filterStatus').value = activeFilters.status;
-    document.getElementById('filterPriority').value = activeFilters.priority;
-    document.getElementById('filterSprint').value = activeFilters.sprint;
-}
+        const query = e.target.value.toLowerCase();
+        let filtered = allIssues.filter(issue => {
+            if (activeFilters.type && issue.issue_type !== activeFilters.type) return false;
+            if (activeFilters.status && issue.status !== activeFilters.status) return false;
+            if (activeFilters.priority && issue.priority !== activeFilters.priority) return false;
+            if (activeFilters.sprint && issue.sprint !== activeFilters.sprint) return false;
+            return true;
+        });
+        if (query) {
+            filtered = filtered.filter(issue => 
+                issue.issue_key.toLowerCase().includes(query) ||
+                (issue.summary && issue.summary.toLowerCase().includes(query)) ||
+                (issue.assignee && issue.assignee.toLowerCase().includes(query))
+            );
+        }
+        if (sortColumn) {
+            filtered = [...filtered].sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+                if (aVal === null || aVal === undefined || aVal === '') aVal = '';
+                if (bVal === null || bVal === undefined || bVal === '') bVal = '';
+                if (sortColumn === 'time_original_estimate' || sortColumn === 'time_spent') {
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                }
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        renderIssuesTable(filtered);
+        if (document.getElementById('filterType')) {
+            document.getElementById('filterType').value = activeFilters.type;
+            document.getElementById('filterStatus').value = activeFilters.status;
+            document.getElementById('filterPriority').value = activeFilters.priority;
+            document.getElementById('filterSprint').value = activeFilters.sprint;
+        }
     });
 });
 
-// Автоматическое обновление каждые 5 минут
-// setInterval(loadData, 5 * 60 * 1000);
-       async function loadSEOTasks() {
+async function loadSEOTasks() {
     try {
-// Запрос к вашему API
-const response = await fetch('/api/my-tasks-seo');
-const tasks = await response.json();
-
-// Показываем результаты
-if (tasks.length === 0) {
-    alert('SEO задач не найдено');
-    return;
+        const response = await fetch('/api/my-tasks-seo');
+        const tasks = await response.json();
+        if (tasks.length === 0) {
+            alert('SEO задач не найдено');
+            return;
+        }
+        const html = `
+            <h2>🔍 Мои SEO задачи (${tasks.length})</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ключ</th>
+                        <th>Описание</th>
+                        <th>Статус</th>
+                        <th>Затрачено</th>
+                        <th>Спринт</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tasks.map(task => `
+                        <tr>
+                            <td><a href="${getJiraIssueLink(task.issue_key)}" class="issue-key" target="_blank">${task.issue_key}</a></td>
+                            <td>${task.summary || '-'}</td>
+                            <td><span class="badge ${getStatusClass(task.status)}">${task.status}</span></td>
+                            <td>${formatHours(task.time_spent)}</td>
+                            <td>${task.sprint || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        document.getElementById('issuesTable').innerHTML = html;
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Ошибка загрузки SEO задач');
+    }
 }
 
-// Формируем HTML таблицу
-const html = `
-    <h2>🔍 Мои SEO задачи (${tasks.length})</h2>
-    <table>
-<thead>
-    <tr>
-<th>Ключ</th>
-<th>Описание</th>
-<th>Статус</th>
-<th>Затрачено</th>
-<th>Спринт</th>
-    </tr>
-</thead>
-<tbody>
-    ${tasks.map(task => `
-<tr>
-    <td><a href="#" class="issue-key">${task.issue_key}</a></td>
-    <td>${task.summary || '-'}</td>
-    <td><span class="badge ${getStatusClass(task.status)}">${task.status}</span></td>
-    <td>${formatHours(task.time_spent)}</td>
-    <td>${task.sprint || '-'}</td>
-</tr>
-    `).join('')}
-</tbody>
-    </table>
-`;
-
-// Отображаем в таб "issues"
-document.getElementById('issuesTable').innerHTML = html;
-
-    } catch (error) {
-console.error('Ошибка:', error);
-alert('Ошибка загрузки SEO задач');
-    }
-} 
-// Загружаем данные при старте
 loadData();
 
 async function loadGraphVisualization() {
     try {
         const response = await fetch('/api/graph');
         const data = await response.json();
-        
         graphData = data;
         
-        // Подготавливаем узлы для Vis.js
         const nodes = data.nodes.map(node => {
-            // Формируем текстовый тултип
             const tooltip = [
                 `${node.issue_key}`,
                 `Название: ${node.summary || '-'}`,
@@ -703,21 +598,18 @@ async function loadGraphVisualization() {
                 `Исполнитель: ${node.assignee || '-'}`
             ].join('\n');
             
-            // Определяем форму по типу задачи
-            let shape = 'box'; // по умолчанию - обычная задача
+            let shape = 'box';
             let borderWidth = 2;
-            let shapeProperties = {};
-            
             const issueType = (node.issue_type || '').toLowerCase();
             
             if (issueType.includes('epic') || issueType === 'эпик') {
-                shape = 'hexagon'; // Эпик - шестиугольник
+                shape = 'hexagon';
                 borderWidth = 3;
             } else if (issueType.includes('story') || issueType.includes('история')) {
-                shape = 'ellipse'; // История - овал
+                shape = 'ellipse';
                 borderWidth = 2;
             } else {
-                shape = 'box'; // Задача - прямоугольник
+                shape = 'box';
                 borderWidth = 2;
             }
             
@@ -745,7 +637,6 @@ async function loadGraphVisualization() {
             };
         });
 
-        // Подготавливаем связи
         const edges = data.edges.map((edge, idx) => ({
             id: idx,
             from: edge.source_issue_key,
@@ -787,7 +678,6 @@ function getNodeBorderColor(status) {
 function renderGraph(nodes, edges) {
     const container = document.getElementById('graphContainer');
     if (!container) {
-        // Создаем контейнер если его нет
         const linksDiv = document.getElementById('linksTable');
         linksDiv.innerHTML = `
             <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
@@ -913,7 +803,6 @@ function renderGraph(nodes, edges) {
 
     network = new vis.Network(graphContainer, data, options);
 
-    // Создаём кастомный тултип
     let tooltipDiv = document.getElementById('graphTooltip');
     if (!tooltipDiv) {
         tooltipDiv = document.createElement('div');
@@ -936,7 +825,6 @@ function renderGraph(nodes, edges) {
         document.body.appendChild(tooltipDiv);
     }
 
-    // Показываем тултип при наведении
     network.on('hoverNode', function(params) {
         const nodeId = params.node;
         const node = nodes.find(n => n.id === nodeId);
@@ -946,12 +834,10 @@ function renderGraph(nodes, edges) {
         }
     });
 
-    // Скрываем при уходе курсора
     network.on('blurNode', function() {
         tooltipDiv.style.display = 'none';
     });
 
-    // Двигаем тултип за курсором
     graphContainer.addEventListener('mousemove', function(e) {
         if (tooltipDiv.style.display === 'block') {
             tooltipDiv.style.left = (e.pageX + 15) + 'px';
@@ -959,7 +845,6 @@ function renderGraph(nodes, edges) {
         }
     });
 
-    // Добавляем обработчик кликов
     network.on('click', function(params) {
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
@@ -1003,7 +888,6 @@ async function loadCurrentSprintIssues() {
 }
 
 function renderSprintIssuesTable(issues, sprintName) {
-    // Группируем по статусу
     const byStatus = {
         'В работе': [],
         'Открыто': [],
@@ -1027,7 +911,6 @@ function renderSprintIssuesTable(issues, sprintName) {
         </div>
     `;
     
-    // Отображаем по статусам
     for (const [status, statusIssues] of Object.entries(byStatus)) {
         if (statusIssues.length === 0) continue;
         
@@ -1054,7 +937,7 @@ function renderSprintIssuesTable(issues, sprintName) {
                         <tbody>
                             ${statusIssues.map(issue => `
                                 <tr class="${getRowClass(issue.issue_type)}">
-                                    <td><a href="#" class="issue-key" onclick="showIssueDetails('${issue.issue_key}')">${issue.issue_key}</a></td>
+                                    <td><a href="${getJiraIssueLink(issue.issue_key)}" class="issue-key" target="_blank">${issue.issue_key}</a></td>
                                     <td>${issue.issue_type || '-'}</td>
                                     <td>${issue.summary || '-'}</td>
                                     <td>${issue.assignee || '-'}</td>
