@@ -10,6 +10,8 @@ from psycopg2.extras import RealDictCursor
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+import calendar
+from flask import request
 
 load_dotenv()
 
@@ -405,6 +407,163 @@ def format_date_filter(date_obj):
 def format_hours_filter(hours):
     return format_hours(hours)
 
+@app.route('/api/quarterly-report')
+def get_quarterly_report():
+    """API: Квартальный SEO-отчёт по данным из Jira"""
+    quarter = request.args.get('quarter', 'Q2')
+    year = int(request.args.get('year', datetime.now().year))
+
+    # Границы квартала
+    quarter_bounds = {
+        'Q1': (1, 3), 'Q2': (4, 6), 'Q3': (7, 9), 'Q4': (10, 12)
+    }
+    start_month, end_month = quarter_bounds.get(quarter, (4, 6))
+    date_from = datetime(year, start_month, 1)
+    # Последний день последнего месяца квартала
+    import calendar
+    last_day = calendar.monthrange(year, end_month)[1]
+    date_to = datetime(year, end_month, last_day, 23, 59, 59)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # --- Все задачи за квартал ---
+    cursor.execute("""
+        SELECT
+            issue_key,
+            summary,
+            status,
+            issue_type,
+            labels,
+            epic_link,
+            sprint,
+            time_original_estimate,
+            time_spent,
+            created_date,
+            updated_date
+        FROM jira_issues
+        WHERE created_date >= %s AND created_date <= %s
+        ORDER BY updated_date DESC
+    """, (date_from, date_to))
+    issues = cursor.fetchall()
+
+    # --- Статистика по статусам ---
+    cursor.execute("""
+        SELECT status, COUNT(*) as cnt
+        FROM jira_issues
+        WHERE created_date >= %s AND created_date <= %s
+        GROUP BY status
+        ORDER BY cnt DESC
+    """, (date_from, date_to))
+    by_status = cursor.fetchall()
+
+    # --- Статистика по спринтам ---
+    cursor.execute("""
+        SELECT
+            sprint,
+            COUNT(*) as total,
+            COUNT(CASE WHEN status IN ('Готово','Закрыта','Done','Closed') THEN 1 END) as done,
+            COALESCE(ROUND(SUM(time_original_estimate)::numeric, 1), 0) as estimated,
+            COALESCE(ROUND(SUM(time_spent)::numeric, 1), 0) as spent
+        FROM jira_issues
+        WHERE created_date >= %s AND created_date <= %s
+          AND sprint IS NOT NULL
+        GROUP BY sprint
+        ORDER BY sprint
+    """, (date_from, date_to))
+    by_sprint = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    # --- Группировка по направлениям через labels ---
+    # Маппинг меток на направления
+    direction_map = {
+        'Тех.Аудит':      'Технический SEO',
+        'Оптимизация':    'Технический SEO',
+        'SERP_Google':    'Технический SEO',
+        'Яндекс.Поиск':  'Технический SEO',
+        'Микроразметка':  'Микроразметка',
+        'Статья':         'Контент',
+        'Блог':           'Контент',
+        'Контент_План':   'Контент',
+        'Аналитика_SEO':  'Аналитика',
+        'Отчеты_SEO':     'Аналитика',
+        'Автоматизация':  'Аналитика',
+        'Запросы':        'Контент',
+        'Линкбилдинг':    'Линкбилдинг',
+        'Партнеры':       'Линкбилдинг',
+    }
+
+    directions = {}
+    untagged = []
+
+    for issue in issues:
+        labels = issue.get('labels') or []
+        matched_dir = None
+        for label in labels:
+            if label in direction_map:
+                matched_dir = direction_map[label]
+                break
+        if not matched_dir:
+            matched_dir = 'Прочее'
+
+        if matched_dir not in directions:
+            directions[matched_dir] = {
+                'name': matched_dir,
+                'tasks': [],
+                'total': 0,
+                'done': 0,
+                'estimated': 0.0,
+                'spent': 0.0
+            }
+
+        d = directions[matched_dir]
+        d['tasks'].append({
+            'key': issue['issue_key'],
+            'summary': issue['summary'],
+            'status': issue['status'],
+            'labels': labels,
+            'spent': float(issue['time_spent'] or 0)
+        })
+        d['total'] += 1
+        if issue['status'] in ('Готово', 'Закрыта', 'Done', 'Closed'):
+            d['done'] += 1
+        d['estimated'] += float(issue['time_original_estimate'] or 0)
+        d['spent'] += float(issue['time_spent'] or 0)
+
+    # Округляем
+    for d in directions.values():
+        d['estimated'] = round(d['estimated'], 1)
+        d['spent'] = round(d['spent'], 1)
+
+    # Сортируем по кол-ву задач
+    directions_sorted = sorted(directions.values(), key=lambda x: x['total'], reverse=True)
+
+    # --- Итоги ---
+    total_issues = len(issues)
+    done_statuses = ('Готово', 'Закрыта', 'Done', 'Closed')
+    total_done = sum(1 for i in issues if i['status'] in done_statuses)
+    total_estimated = round(sum(float(i['time_original_estimate'] or 0) for i in issues), 1)
+    total_spent = round(sum(float(i['time_spent'] or 0) for i in issues), 1)
+    done_pct = round(total_done / total_issues * 100) if total_issues else 0
+
+    return jsonify({
+        'quarter': quarter,
+        'year': year,
+        'date_from': date_from.strftime('%d.%m.%Y'),
+        'date_to': date_to.strftime('%d.%m.%Y'),
+        'summary': {
+            'total_issues': total_issues,
+            'total_done': total_done,
+            'done_pct': done_pct,
+            'total_estimated': total_estimated,
+            'total_spent': total_spent,
+        },
+        'by_status': [dict(r) for r in by_status],
+        'by_sprint': [dict(r) for r in by_sprint],
+        'directions': directions_sorted,
+    })
 
 if __name__ == '__main__':
     print("🚀 Запуск веб-приложения Jira Dashboard...")

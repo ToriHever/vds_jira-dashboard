@@ -367,3 +367,186 @@ tr.row-epic:hover {
     font-size: 0.9em;
     margin-top: 10px;
 }
+
+/* ============================================================
+   КВАРТАЛЬНЫЙ ОТЧЁТ
+   ============================================================ */
+
+/* Шапка вкладки с контролами */
+.quarterly-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.quarterly-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.quarterly-controls select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1e1e2e;
+    color: #e0e0e0;
+    font-size: 14px;
+    cursor: pointer;
+}
+.gsc-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.gsc-label {
+    font-size: 13px;
+    color: #888;
+    white-space: nowrap;
+}
+.gsc-input {
+    width: 100px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1e1e2e;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+.gsc-input::placeholder { color: #555; }
+
+/* Отчёт */
+.q-report { padding-bottom: 2rem; }
+
+.q-title-row {
+    margin-bottom: 20px;
+}
+.q-eyebrow {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 4px;
+}
+.q-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 2px;
+}
+.q-sub { font-size: 13px; color: #888; }
+
+/* KPI */
+.q-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 28px;
+}
+.q-kpi {
+    background: #1e1e2e;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 14px 16px;
+}
+.q-kpi-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+.q-kpi-val { font-size: 22px; font-weight: 600; color: #e0e0e0; line-height: 1.1; margin-bottom: 2px; }
+
+/* Заголовки секций */
+.q-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 12px;
+}
+
+/* Направления */
+.q-directions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+.q-dir-card {
+    background: #1a1a2a;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 14px 16px;
+}
+.q-dir-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.q-dir-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.q-dir-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.q-dir-meta { font-size: 12px; color: #666; }
+
+.q-bar-bg {
+    height: 4px;
+    background: #2a2a3e;
+    border-radius: 2px;
+    margin-bottom: 10px;
+}
+.q-bar-fill {
+    height: 4px;
+    border-radius: 2px;
+    transition: width .4s ease;
+}
+
+/* Задачи внутри направления */
+.q-task-list { display: flex; flex-direction: column; gap: 4px; }
+.q-task-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+    padding: 3px 0;
+    border-bottom: 1px solid #1e1e2e;
+}
+.q-task-row:last-child { border-bottom: none; }
+.q-task-key { color: #5a8dee; flex-shrink: 0; font-family: monospace; font-size: 11px; }
+.q-task-sum { color: #aaa; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-task-status {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.status-done     { background: #1a3a1a; color: #4caf50; }
+.status-progress { background: #1a2a3a; color: #5a8dee; }
+.status-open     { background: #2a2a1a; color: #aaa; }
+.q-more { font-size: 12px; color: #555; padding: 4px 0; }
+
+/* Таблица спринтов */
+.q-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 28px;
+}
+.q-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: #666;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    border-bottom: 1px solid #2a2a3e;
+}
+.q-table td {
+    padding: 9px 10px;
+    color: #ccc;
+    border-bottom: 1px solid #1e1e2e;
+}
+.q-table tr:last-child td { border-bottom: none; }
+.q-table tr:hover td { background: #1e1e2a; }

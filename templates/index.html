@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <!-- Version: {{ 2 }} -->
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jira Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='images/logo.png') }}" type="image/x-icon">
-    
+
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -36,9 +38,10 @@
                 <div class="stat-number" id="completed">-</div>
                 <div class="stat-label">Завершено</div>
             </div>
-            
+
             <!-- НОВАЯ КАРТОЧКА: Загруженность спринта -->
-            <div class="stat-card" id="sprintLoadCard" style="grid-column: span 2; cursor: pointer;" onclick="showTab('sprintLoad')">
+            <div class="stat-card" id="sprintLoadCard" style="grid-column: span 2; cursor: pointer;"
+                onclick="showTab('sprintLoad')">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div class="stat-number" id="sprintLoadPercent" style="font-size: 2em;">-</div>
@@ -56,6 +59,7 @@
             <button class="tab" onclick="showTab('status')">📈 По статусам</button>
             <button class="tab" onclick="showTab('sprintLoad')">⚡ Загруженность спринта</button>
             <button class="tab" onclick="showTab('links')">🔗 Связи</button>
+            <button class="tab" onclick="showTab('quarterly')">📊 Квартал</button>
         </div>
 
         <div class="content">
@@ -76,17 +80,48 @@
 
             <div id="links" class="tab-content">
                 <h2>Связи между задачами</h2>
-                <p style="margin-bottom: 20px; color: #666;">Здесь отображаются все связанные задачи. Вы можете использовать эти данные для построения карты зависимостей.</p>
+                <p style="margin-bottom: 20px; color: #666;">Здесь отображаются все связанные задачи. Вы можете
+                    использовать эти данные для построения карты зависимостей.</p>
                 <div id="linksTable"></div>
             </div>
             <div id="sprintLoad" class="tab-content">
-            <h2 id="sprintLoadTitle">⚡ Загруженность текущего спринта</h2>
+                <h2 id="sprintLoadTitle">⚡ Загруженность текущего спринта</h2>
                 <div id="sprintLoadDetails"></div>
             </div>
+            <div id="quarterly" class="tab-content">
+                <div class="quarterly-header">
+                    <div class="quarterly-controls">
+                        <select id="quarterSelect" onchange="loadQuarterlyReport()">
+                            <option value="Q1">Q1 (янв–мар)</option>
+                            <option value="Q2" selected>Q2 (апр–июн)</option>
+                            <option value="Q3">Q3 (июл–сен)</option>
+                            <option value="Q4">Q4 (окт–дек)</option>
+                        </select>
+                        <select id="yearSelect" onchange="loadQuarterlyReport()">
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                        <button class="refresh-btn" onclick="loadQuarterlyReport()">🔄 Обновить</button>
+                    </div>
+
+                    <!-- GSC-метрики: вводятся вручную из GSC/Topvisor -->
+                    <div class="gsc-inputs">
+                        <span class="gsc-label">GSC-данные (вручную):</span>
+                        <input type="number" id="gscClicks" placeholder="Клики" class="gsc-input">
+                        <input type="number" id="gscImpressions" placeholder="Показы" class="gsc-input">
+                        <input type="number" id="gscPosition" placeholder="Позиция" step="0.1" class="gsc-input">
+                        <input type="number" id="gscCtr" placeholder="CTR %" step="0.1" class="gsc-input">
+                        <input type="number" id="gscClicksPrev" placeholder="Клики Q-1" class="gsc-input">
+                    </div>
+                </div>
+
+                <div id="quarterlyReport"></div>
+            </div>
+
         </div>
     </div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
 </body>
-</html>
 
+</html>
