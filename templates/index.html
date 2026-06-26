@@ -90,6 +90,7 @@
             </div>
             <div id="quarterly" class="tab-content">
                 <div class="quarterly-header">
+
                     <div class="quarterly-controls">
                         <select id="quarterSelect" onchange="loadQuarterlyReport()">
                             <option value="Q1">Q1 (янв–мар)</option>
@@ -102,17 +103,63 @@
                             <option value="2026" selected>2026</option>
                         </select>
                         <button class="refresh-btn" onclick="loadQuarterlyReport()">🔄 Обновить</button>
+                        <span id="gscSavedAt" class="gsc-saved-label"></span>
                     </div>
 
-                    <!-- GSC-метрики: вводятся вручную из GSC/Topvisor -->
-                    <div class="gsc-inputs">
-                        <span class="gsc-label">GSC-данные (вручную):</span>
-                        <input type="number" id="gscClicks" placeholder="Клики" class="gsc-input">
-                        <input type="number" id="gscImpressions" placeholder="Показы" class="gsc-input">
-                        <input type="number" id="gscPosition" placeholder="Позиция" step="0.1" class="gsc-input">
-                        <input type="number" id="gscCtr" placeholder="CTR %" step="0.1" class="gsc-input">
-                        <input type="number" id="gscClicksPrev" placeholder="Клики Q-1" class="gsc-input">
+                    <!-- Текущий квартал -->
+                    <div class="gsc-group">
+                        <span class="gsc-group-label">Текущий квартал</span>
+                        <div class="gsc-inputs">
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Клики</label>
+                                <input type="number" id="gscClicks" placeholder="напр. 26737" class="gsc-input"
+                                    oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Показы</label>
+                                <input type="number" id="gscImpressions" placeholder="напр. 2755000" class="gsc-input"
+                                    oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Позиция</label>
+                                <input type="number" id="gscPosition" placeholder="напр. 6.7" step="0.1"
+                                    class="gsc-input" oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">CTR %</label>
+                                <input type="number" id="gscCtr" placeholder="напр. 1.2" step="0.1" class="gsc-input"
+                                    oninput="scheduleGscSave()">
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Прошлый квартал -->
+                    <div class="gsc-group">
+                        <span class="gsc-group-label">Прошлый квартал (для динамики)</span>
+                        <div class="gsc-inputs">
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Клики Q-1</label>
+                                <input type="number" id="gscClicksPrev" placeholder="напр. 24000" class="gsc-input"
+                                    oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Показы Q-1</label>
+                                <input type="number" id="gscImpressionsPrev" placeholder="напр. 2500000"
+                                    class="gsc-input" oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">Позиция Q-1</label>
+                                <input type="number" id="gscPositionPrev" placeholder="напр. 7.1" step="0.1"
+                                    class="gsc-input" oninput="scheduleGscSave()">
+                            </div>
+                            <div class="gsc-field">
+                                <label class="gsc-field-label">CTR Q-1 %</label>
+                                <input type="number" id="gscCtrPrev" placeholder="напр. 1.0" step="0.1"
+                                    class="gsc-input" oninput="scheduleGscSave()">
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div id="quarterlyReport"></div>

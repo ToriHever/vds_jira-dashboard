@@ -961,6 +961,88 @@ function renderSprintIssuesTable(issues, sprintName) {
 // КВАРТАЛЬНЫЙ ОТЧЁТ
 // ============================================================
 
+const JIRA_BASE = 'https://jira.ddos-guard.net/browse';
+
+let gscSaveTimer = null;
+
+function fmtNum(n) {
+    if (n === null || n === undefined || n === '') return '—';
+    n = Number(n);
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, '') + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.?0+$/, '') + 'K';
+    return n.toLocaleString('ru');
+}
+
+function calcDelta(curr, prev, inverse = false) {
+    if (!curr || !prev) return null;
+    const pct = Math.round((curr - prev) / Math.abs(prev) * 100);
+    const sign = pct >= 0 ? '+' : '';
+    const positive = inverse ? pct < 0 : pct >= 0;
+    return { text: `${sign}${pct}%`, color: positive ? '#15803d' : '#b91c1c' };
+}
+
+function deltaHtml(curr, prev, inverse = false) {
+    const d = calcDelta(curr, prev, inverse);
+    if (!d) return '';
+    return `<span style="font-size:12px;color:${d.color};margin-top:2px;display:block">${d.text} к прошлому кварталу</span>`;
+}
+
+// Рендер одной задачи — key как ссылка
+function taskRow(t) {
+    return `<div class="q-task-row">
+      <a class="q-task-key" href="${JIRA_BASE}/${t.key}" target="_blank" rel="noopener">${t.key}</a>
+      <span class="q-task-sum">${t.summary}</span>
+      <span class="q-task-status ${getStatusClass(t.status)}">${t.status}</span>
+    </div>`;
+}
+
+// Рендер карточки направления с раскрываемым списком
+function dirCard(dir, color) {
+    const pct = dir.total ? Math.round(dir.done / dir.total * 100) : 0;
+    const INITIAL = 4;
+    const visible = dir.tasks.slice(0, INITIAL);
+    const hidden = dir.tasks.slice(INITIAL);
+    const dirId = 'dir-' + dir.name.replace(/\s+/g, '-');
+
+    const visibleHtml = visible.map(taskRow).join('');
+    const hiddenHtml = hidden.map(taskRow).join('');
+    const moreBtn = hidden.length > 0
+        ? `<button class="q-more-btn" onclick="toggleDirTasks('${dirId}')">
+               +ещё ${hidden.length} задач
+           </button>`
+        : '';
+
+    return `
+    <div class="q-dir-card">
+      <div class="q-dir-header">
+        <span class="q-dir-name">
+          <span class="q-dir-dot" style="background:${color}"></span>
+          ${dir.name}
+        </span>
+        <span class="q-dir-meta">${dir.total} задач · ${dir.spent}ч</span>
+      </div>
+      <div class="q-bar-bg">
+        <div class="q-bar-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="q-task-list">
+        ${visibleHtml}
+        <div id="${dirId}-hidden" style="display:none">${hiddenHtml}</div>
+        ${moreBtn}
+      </div>
+    </div>`;
+}
+
+function toggleDirTasks(dirId) {
+    const hidden = document.getElementById(dirId + '-hidden');
+    const btn = hidden.nextElementSibling;
+    if (!hidden) return;
+    const isOpen = hidden.style.display !== 'none';
+    hidden.style.display = isOpen ? 'none' : 'block';
+    if (btn) btn.textContent = isOpen
+        ? `+ещё ${hidden.children.length} задач`
+        : 'Свернуть';
+}
+
 async function loadQuarterlyReport() {
     const quarter = document.getElementById('quarterSelect').value;
     const year = document.getElementById('yearSelect').value;
@@ -968,116 +1050,146 @@ async function loadQuarterlyReport() {
     container.innerHTML = '<p style="color:#888;padding:2rem 0">Загрузка...</p>';
 
     try {
-        const res = await fetch(`/api/quarterly-report?quarter=${quarter}&year=${year}`);
-        const data = await res.json();
+        const [reportRes, gscRes] = await Promise.all([
+            fetch(`/api/quarterly-report?quarter=${quarter}&year=${year}`),
+            fetch(`/api/gsc-data?quarter=${quarter}&year=${year}`)
+        ]);
+        const data = await reportRes.json();
+        const gsc = await gscRes.json();
+
+        const fields = {
+            gscClicks: gsc.clicks,
+            gscImpressions: gsc.impressions,
+            gscPosition: gsc.avg_position,
+            gscCtr: gsc.ctr,
+            gscClicksPrev: gsc.clicks_prev,
+            gscImpressionsPrev: gsc.impressions_prev,
+            gscPositionPrev: gsc.position_prev,
+            gscCtrPrev: gsc.ctr_prev,
+        };
+
+        if (gsc.found) {
+            Object.entries(fields).forEach(([id, val]) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val ?? '';
+            });
+            const savedAt = document.getElementById('gscSavedAt');
+            if (savedAt && gsc.updated_at) savedAt.textContent = `Сохранено: ${gsc.updated_at}`;
+        } else {
+            Object.keys(fields).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        }
+
         renderQuarterlyReport(data, container);
     } catch (e) {
-        container.innerHTML = '<p style="color:red">Ошибка загрузки данных</p>';
+        container.innerHTML = '<p style="color:red">Ошибка загрузки</p>';
+        console.error(e);
     }
 }
 
+function scheduleGscSave() {
+    clearTimeout(gscSaveTimer);
+    gscSaveTimer = setTimeout(saveGscData, 1000);
+}
+
+async function saveGscData() {
+    const quarter = document.getElementById('quarterSelect').value;
+    const year = document.getElementById('yearSelect').value;
+    const iv = id => { const v = document.getElementById(id)?.value; return v ? parseInt(v) : null; };
+    const fv = id => { const v = document.getElementById(id)?.value; return v ? parseFloat(v) : null; };
+
+    const payload = {
+        quarter, year: parseInt(year),
+        clicks: iv('gscClicks'),
+        impressions: iv('gscImpressions'),
+        avg_position: fv('gscPosition'),
+        ctr: fv('gscCtr'),
+        clicks_prev: iv('gscClicksPrev'),
+        impressions_prev: iv('gscImpressionsPrev'),
+        position_prev: fv('gscPositionPrev'),
+        ctr_prev: fv('gscCtrPrev'),
+    };
+
+    try {
+        const res = await fetch('/api/gsc-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.ok) {
+            const el = document.getElementById('gscSavedAt');
+            if (el) el.textContent = `Сохранено: ${new Date().toLocaleString('ru')}`;
+            const container = document.getElementById('quarterlyReport');
+            if (container && container.querySelector('.q-report')) {
+                const reportRes = await fetch(`/api/quarterly-report?quarter=${quarter}&year=${year}`);
+                const reportData = await reportRes.json();
+                renderQuarterlyReport(reportData, container);
+            }
+        }
+    } catch (e) { console.warn('GSC save failed', e); }
+}
+
 function renderQuarterlyReport(data, container) {
-    // GSC из полей ввода
-    const gscClicks = parseInt(document.getElementById('gscClicks').value) || null;
-    const gscImpressions = parseInt(document.getElementById('gscImpressions').value) || null;
-    const gscPosition = parseFloat(document.getElementById('gscPosition').value) || null;
-    const gscCtr = parseFloat(document.getElementById('gscCtr').value) || null;
-    const gscClicksPrev = parseInt(document.getElementById('gscClicksPrev').value) || null;
+    const iv = id => { const v = document.getElementById(id)?.value; return v ? parseInt(v) : null; };
+    const fv = id => { const v = document.getElementById(id)?.value; return v ? parseFloat(v) : null; };
+
+    const clicks = iv('gscClicks');
+    const impressions = iv('gscImpressions');
+    const position = fv('gscPosition');
+    const ctr = fv('gscCtr');
+    const clicksPrev = iv('gscClicksPrev');
+    const impressionsPrev = iv('gscImpressionsPrev');
+    const positionPrev = fv('gscPositionPrev');
+    const ctrPrev = fv('gscCtrPrev');
 
     const s = data.summary;
-    const qLabel = `${data.quarter} ${data.year}`;
-
-    // --- Дельта кликов ---
-    let clicksDelta = '';
-    if (gscClicks && gscClicksPrev) {
-        const pct = Math.round((gscClicks - gscClicksPrev) / gscClicksPrev * 100);
-        const sign = pct >= 0 ? '+' : '';
-        const color = pct >= 0 ? '#0ca30c' : '#d03b3b';
-        clicksDelta = `<span style="color:${color};font-size:12px">${sign}${pct}% к прошлому кварталу</span>`;
-    }
-
-    // --- Цвета направлений ---
     const dirColors = ['#2a78d6', '#1baf7a', '#eda100', '#4a3aa7', '#e34948', '#eb6834'];
 
-    // --- HTML ---
     container.innerHTML = `
     <div class="q-report">
-
-      <!-- Шапка -->
+ 
       <div class="q-title-row">
-        <div>
-          <div class="q-eyebrow">SEO · Victoria Miroshnikova · DDoS-Guard</div>
-          <h2 class="q-title">Квартальный отчёт ${qLabel}</h2>
-          <div class="q-sub">${data.date_from} — ${data.date_to}</div>
-        </div>
+        <div class="q-eyebrow">SEO · Victoria Miroshnikova · DDoS-Guard</div>
+        <h2 class="q-title">Квартальный отчёт ${data.quarter} ${data.year}</h2>
+        <div class="q-sub">${data.date_from} — ${data.date_to}</div>
       </div>
-
-      <!-- KPI ряд -->
+ 
       <div class="q-kpi-row">
         <div class="q-kpi">
           <div class="q-kpi-label">Клики (GSC)</div>
-          <div class="q-kpi-val">${gscClicks ? gscClicks.toLocaleString('ru') : '—'}</div>
-          <div>${clicksDelta}</div>
+          <div class="q-kpi-val">${fmtNum(clicks)}</div>
+          ${deltaHtml(clicks, clicksPrev)}
         </div>
         <div class="q-kpi">
           <div class="q-kpi-label">Показы (GSC)</div>
-          <div class="q-kpi-val">${gscImpressions ? Math.round(gscImpressions / 1000) + 'K' : '—'}</div>
+          <div class="q-kpi-val">${fmtNum(impressions)}</div>
+          ${deltaHtml(impressions, impressionsPrev)}
         </div>
         <div class="q-kpi">
           <div class="q-kpi-label">Средняя позиция</div>
-          <div class="q-kpi-val">${gscPosition ?? '—'}</div>
+          <div class="q-kpi-val">${position ?? '—'}</div>
+          ${deltaHtml(position, positionPrev, true)}
         </div>
         <div class="q-kpi">
           <div class="q-kpi-label">CTR</div>
-          <div class="q-kpi-val">${gscCtr ? gscCtr + '%' : '—'}</div>
+          <div class="q-kpi-val">${ctr ? ctr + '%' : '—'}</div>
+          ${deltaHtml(ctr, ctrPrev)}
         </div>
         <div class="q-kpi">
           <div class="q-kpi-label">Задач закрыто</div>
           <div class="q-kpi-val">${s.total_done}/${s.total_issues}</div>
-          <div style="font-size:12px;color:#888">${s.done_pct}% выполнено</div>
-        </div>
-        <div class="q-kpi">
-          <div class="q-kpi-label">Часов потрачено</div>
-          <div class="q-kpi-val">${s.total_spent}ч</div>
-          <div style="font-size:12px;color:#888">план: ${s.total_estimated}ч</div>
+          <span style="font-size:12px;color:#6b7280">${s.done_pct}% выполнено</span>
         </div>
       </div>
-
-      <!-- Направления -->
+ 
       <div class="q-section-label">Что сделано по направлениям</div>
-      <div class="q-directions">
-        ${data.directions.map((dir, idx) => {
-        const color = dirColors[idx % dirColors.length];
-        const pct = dir.total ? Math.round(dir.done / dir.total * 100) : 0;
-        const topTasks = dir.tasks.slice(0, 3).map(t =>
-            `<div class="q-task-row">
-                    <span class="q-task-key">${t.key}</span>
-                    <span class="q-task-sum">${t.summary}</span>
-                    <span class="q-task-status ${getStatusClass(t.status)}">${t.status}</span>
-                </div>`
-        ).join('');
-        const moreCount = dir.tasks.length - 3;
-        return `
-            <div class="q-dir-card">
-              <div class="q-dir-header">
-                <span class="q-dir-name">
-                  <span class="q-dir-dot" style="background:${color}"></span>
-                  ${dir.name}
-                </span>
-                <span class="q-dir-meta">${dir.total} задач · ${dir.spent}ч</span>
-              </div>
-              <div class="q-bar-bg">
-                <div class="q-bar-fill" style="width:${pct}%;background:${color}"></div>
-              </div>
-              <div class="q-task-list">
-                ${topTasks}
-                ${moreCount > 0 ? `<div class="q-more">+ещё ${moreCount} задач</div>` : ''}
-              </div>
-            </div>`;
-    }).join('')}
+      <div class="q-directions-grid">
+        ${data.directions.map((dir, idx) => dirCard(dir, dirColors[idx % dirColors.length])).join('')}
       </div>
-
-      <!-- По спринтам -->
+ 
       <div class="q-section-label">По спринтам</div>
       <table class="q-table">
         <thead>
@@ -1094,7 +1206,6 @@ function renderQuarterlyReport(data, container) {
             </tr>`).join('')}
         </tbody>
       </table>
-
     </div>`;
 }
 
