@@ -72,36 +72,35 @@ def add_issue_comment(issue_key):
         return jsonify({'error': str(e)}), 502
 
 
-@app.route('/api/issue/<issue_key>/comment/<comment_id>/append', methods=['POST'])
-def append_issue_comment(issue_key, comment_id):
+@app.route('/api/issue/<issue_key>/comment/<comment_id>', methods=['PUT'])
+def update_issue_comment(issue_key, comment_id):
     body = request.get_json() or {}
-    text = body.get('text', '').strip()
-    if not text:
-        return jsonify({'error': 'Пустой текст для дописывания'}), 400
+    text = body.get('text', '')
     try:
         client = JiraCommentClient()
-        comment = client.append_to_comment(issue_key, comment_id, text)
+        comment = client.update_comment(issue_key, comment_id, text)
         return jsonify(comment)
     except JiraCommentError as e:
         return jsonify({'error': str(e)}), 502
 
 
-@app.route('/api/issue/<issue_key>/comment/<comment_id>/append-image', methods=['POST'])
-def append_issue_comment_image(issue_key, comment_id):
+@app.route('/api/issue/<issue_key>/attachment', methods=['POST'])
+def upload_issue_attachment(issue_key):
+    """Загружает файл как вложение к задаче и возвращает его метаданные
+    (filename, id...), не трогая никакие комментарии - используется, чтобы
+    вставить !filename! в текст редактируемого комментария на месте курсора."""
     file = request.files.get('file')
     if not file or not file.filename:
         return jsonify({'error': 'Файл не передан'}), 400
-    caption = request.form.get('text', '').strip()
     try:
         client = JiraCommentClient()
-        comment = client.append_image_to_comment(
-            issue_key, comment_id,
+        attachments = client.upload_attachment(
+            issue_key,
             filename=file.filename,
             file_bytes=file.read(),
-            mime_type=file.mimetype or 'application/octet-stream',
-            text=caption
+            mime_type=file.mimetype or 'application/octet-stream'
         )
-        return jsonify(comment)
+        return jsonify(attachments[-1] if attachments else {'error': 'Jira не вернула вложение'})
     except JiraCommentError as e:
         return jsonify({'error': str(e)}), 502
 

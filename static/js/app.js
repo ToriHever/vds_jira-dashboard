@@ -1217,7 +1217,7 @@ function getStatusClass(status) {
     return 'status-open';
 }
 
-// ===== Комментарии Jira (получение / дописывание / картинки) =====
+// ===== Комментарии Jira (просмотр / полное редактирование / картинки) =====
 // VDS, на котором крутится дашборд, не имеет сетевого доступа к Jira.
 // Поэтому запросы по комментариям идут не на сам дашборд, а на локальный
 // прокси-сервис (local_jira_proxy.py), который вы запускаете у себя на
@@ -1225,6 +1225,8 @@ function getStatusClass(status) {
 const JIRA_PROXY_BASE = 'http://localhost:5057';
 
 let currentCommentsIssueKey = null;
+let currentCommentRawBodies = {};   // commentId -> исходный текст (для редактирования)
+let currentCommentAttachments = {}; // filename -> метаданные вложения
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -1257,6 +1259,10 @@ function closeCommentsModal(event) {
     currentCommentsIssueKey = null;
 }
 
+function proxyUnavailableAlert() {
+    alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
+}
+
 function proxyUnavailableHtml() {
     return `<div class="comments-error">
         Не удалось подключиться к локальному Jira-прокси на ${escapeHtml(JIRA_PROXY_BASE)}.<br>
@@ -1280,27 +1286,27 @@ async function loadComments(issueKey) {
 }
 
 function renderCommentsModalBody(issueKey, comments, attachments) {
-    const attachmentsByName = {};
-    attachments.forEach(a => { attachmentsByName[a.filename] = a; });
+    currentCommentAttachments = {};
+    attachments.forEach(a => { currentCommentAttachments[a.filename] = a; });
+    currentCommentRawBodies = {};
+    comments.forEach(c => { currentCommentRawBodies[c.id] = c.body || ''; });
 
     const commentsHtml = comments.length
         ? comments.map(c => `
-            <div class="comment-card">
+            <div class="comment-card" id="comment-card-${c.id}">
+                <div class="comment-toolbar">
+                    <button class="icon-btn view-only" title="Редактировать" onclick="startEditComment('${issueKey}', '${c.id}')">✏️</button>
+                    <button class="icon-btn edit-only" title="Вставить картинку" onclick="document.getElementById('edit-image-input-${c.id}').click()">🖼️</button>
+                    <button class="icon-btn edit-only" title="Сохранить" onclick="saveEditComment('${issueKey}', '${c.id}')">💾</button>
+                    <button class="icon-btn edit-only" title="Отменить" onclick="cancelEditComment('${c.id}')">✖️</button>
+                    <input type="file" id="edit-image-input-${c.id}" accept="image/*" style="display:none" onchange="handleEditImageSelected('${issueKey}', '${c.id}', this)">
+                </div>
                 <div class="comment-meta">
                     <b>${escapeHtml(c.author ? c.author.displayName : '')}</b>
                     <span class="comment-date">${escapeHtml(c.updated || c.created || '')}</span>
                 </div>
-                <div class="comment-body">${renderCommentBody(c.body, attachmentsByName)}</div>
-                <div class="comment-actions">
-                    <textarea id="append-text-${c.id}" class="comment-append-input" placeholder="Дописать в конец этого комментария…"></textarea>
-                    <div class="comment-actions-row">
-                        <button class="refresh-btn" onclick="submitAppendText('${issueKey}', '${c.id}')">➕ Дописать текст</button>
-                        <label class="comment-image-upload">
-                            🖼️ Прикрепить картинку
-                            <input type="file" accept="image/*" style="display:none" onchange="submitAppendImage('${issueKey}', '${c.id}', this)">
-                        </label>
-                    </div>
-                </div>
+                <div class="comment-view" id="comment-view-${c.id}">${renderCommentBody(c.body, currentCommentAttachments)}</div>
+                <textarea class="comment-edit-textarea" id="comment-edit-${c.id}" style="display:none"></textarea>
             </div>
         `).join('')
         : '<div class="comments-empty">Комментариев пока нет</div>';
@@ -1309,19 +1315,87 @@ function renderCommentsModalBody(issueKey, comments, attachments) {
         <div class="comments-list">${commentsHtml}</div>
         <div class="comment-new">
             <h4>Новый комментарий</h4>
-            <textarea id="new-comment-text" class="comment-append-input" placeholder="Текст нового комментария…"></textarea>
+            <textarea id="new-comment-text" class="comment-edit-textarea" placeholder="Текст нового комментария…"></textarea>
             <button class="refresh-btn" onclick="submitNewComment('${issueKey}')">💬 Добавить комментарий</button>
         </div>
     `;
 }
 
-async function submitAppendText(issueKey, commentId) {
-    const textarea = document.getElementById(`append-text-${commentId}`);
-    const text = textarea.value.trim();
-    if (!text) return;
+function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    textarea.value = textarea.value.slice(0, start) + text + textarea.value.slice(end);
+    const newPos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = newPos;
+    textarea.focus();
+}
+
+function startEditComment(issueKey, commentId) {
+    const card = document.getElementById(`comment-card-${commentId}`);
+    const view = document.getElementById(`comment-view-${commentId}`);
+    const textarea = document.getElementById(`comment-edit-${commentId}`);
+    textarea.value = currentCommentRawBodies[commentId] || '';
+    view.style.display = 'none';
+    textarea.style.display = 'block';
+    card.classList.add('editing');
+    textarea.focus();
+
+    textarea.onpaste = (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type && item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) uploadAndInsertImage(issueKey, file, textarea);
+                break;
+            }
+        }
+    };
+}
+
+function cancelEditComment(commentId) {
+    const card = document.getElementById(`comment-card-${commentId}`);
+    const view = document.getElementById(`comment-view-${commentId}`);
+    const textarea = document.getElementById(`comment-edit-${commentId}`);
+    textarea.style.display = 'none';
+    view.style.display = 'block';
+    card.classList.remove('editing');
+}
+
+async function uploadAndInsertImage(issueKey, file, textarea) {
+    const formData = new FormData();
+    formData.append('file', file);
     try {
-        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment/${commentId}/append`, {
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/attachment`, {
             method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(`Ошибка: ${data.error}`);
+            return;
+        }
+        insertAtCursor(textarea, `!${data.filename}!`);
+    } catch (e) {
+        proxyUnavailableAlert();
+    }
+}
+
+function handleEditImageSelected(issueKey, commentId, input) {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+    const textarea = document.getElementById(`comment-edit-${commentId}`);
+    uploadAndInsertImage(issueKey, file, textarea);
+}
+
+async function saveEditComment(issueKey, commentId) {
+    const textarea = document.getElementById(`comment-edit-${commentId}`);
+    const text = textarea.value;
+    try {
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment/${commentId}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text })
         });
@@ -1332,30 +1406,7 @@ async function submitAppendText(issueKey, commentId) {
         }
         loadComments(issueKey);
     } catch (e) {
-        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
-    }
-}
-
-async function submitAppendImage(issueKey, commentId, input) {
-    const file = input.files[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment/${commentId}/append-image`, {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        if (data.error) {
-            alert(`Ошибка: ${data.error}`);
-            return;
-        }
-        loadComments(issueKey);
-    } catch (e) {
-        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
-    } finally {
-        input.value = '';
+        proxyUnavailableAlert();
     }
 }
 
@@ -1376,6 +1427,6 @@ async function submitNewComment(issueKey) {
         }
         loadComments(issueKey);
     } catch (e) {
-        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
+        proxyUnavailableAlert();
     }
 }
