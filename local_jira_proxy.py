@@ -16,10 +16,18 @@ JIRA_PASSWORD - те же, что использует jira_sync.py.
 """
 
 import os
+import sys
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 from jira_comments import JiraCommentClient, JiraCommentError
+
+# Консоль Windows по умолчанию использует cp1251/cp866, которая не умеет
+# печатать часть символов (например эмодзи) - переключаем на UTF-8, чтобы
+# любой вывод (в том числе от Flask/Werkzeug) не валил процесс.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 load_dotenv()
 
@@ -111,6 +119,6 @@ def get_attachment_content(attachment_id):
 
 
 if __name__ == '__main__':
-    print(f"🔌 Локальный Jira-прокси запущен: http://localhost:{PORT}")
+    print(f"Локальный Jira-прокси запущен: http://localhost:{PORT}")
     print("Держите этот терминал открытым, пока пользуетесь комментариями в дашборде.")
     app.run(host='127.0.0.1', port=PORT, debug=False)
