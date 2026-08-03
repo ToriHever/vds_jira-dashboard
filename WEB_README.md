@@ -45,7 +45,10 @@ VDS, на котором обычно крутится дашборд, не им
 
 ```bash
 # На своём компьютере, рядом с .env (JIRA_URL/JIRA_LOGIN/JIRA_PASSWORD)
-pip install -r requirements_web.txt
+# Обратите внимание: requirements_local_proxy.txt, а не requirements_web.txt -
+# прокси не трогает Postgres, поэтому psycopg2-binary (которая часто не
+# собирается на новых версиях Python без Visual C++ Build Tools) ему не нужна.
+pip install -r requirements_local_proxy.txt
 python local_jira_proxy.py
 ```
 
