@@ -38,6 +38,12 @@ class JiraCommentClient:
     def _url(self, path: str) -> str:
         return f"{self.jira_url}{path}"
 
+    def _request(self, method: str, url: str, **kwargs):
+        try:
+            return self.session.request(method, url, timeout=15, **kwargs)
+        except requests.exceptions.RequestException as e:
+            raise JiraCommentError(f"Не удалось подключиться к Jira: {e}") from e
+
     def _raise_for_status(self, response):
         if not response.ok:
             raise JiraCommentError(
@@ -47,13 +53,13 @@ class JiraCommentClient:
     # --- Комментарии -----------------------------------------------------
 
     def list_comments(self, issue_key: str) -> list:
-        resp = self.session.get(self._url(f"/rest/api/2/issue/{issue_key}/comment"))
+        resp = self._request('GET', self._url(f"/rest/api/2/issue/{issue_key}/comment"))
         self._raise_for_status(resp)
         return resp.json().get('comments', [])
 
     def get_comment(self, issue_key: str, comment_id: str) -> dict:
-        resp = self.session.get(
-            self._url(f"/rest/api/2/issue/{issue_key}/comment/{comment_id}")
+        resp = self._request(
+            'GET', self._url(f"/rest/api/2/issue/{issue_key}/comment/{comment_id}")
         )
         self._raise_for_status(resp)
         return resp.json()
@@ -64,8 +70,8 @@ class JiraCommentClient:
         current = self.get_comment(issue_key, comment_id)
         current_body = current.get('body') or ''
         new_body = f"{current_body}{separator}{text}" if current_body else text
-        resp = self.session.put(
-            self._url(f"/rest/api/2/issue/{issue_key}/comment/{comment_id}"),
+        resp = self._request(
+            'PUT', self._url(f"/rest/api/2/issue/{issue_key}/comment/{comment_id}"),
             json={'body': new_body}
         )
         self._raise_for_status(resp)
@@ -73,8 +79,8 @@ class JiraCommentClient:
 
     def add_comment(self, issue_key: str, text: str) -> dict:
         """Создаёт новый (отдельный) комментарий."""
-        resp = self.session.post(
-            self._url(f"/rest/api/2/issue/{issue_key}/comment"),
+        resp = self._request(
+            'POST', self._url(f"/rest/api/2/issue/{issue_key}/comment"),
             json={'body': text}
         )
         self._raise_for_status(resp)
@@ -85,8 +91,8 @@ class JiraCommentClient:
     def upload_attachment(self, issue_key: str, filename: str, file_bytes: bytes,
                            mime_type: str = 'application/octet-stream') -> list:
         """Загружает файл как вложение к задаче. Возвращает метаданные вложений."""
-        resp = self.session.post(
-            self._url(f"/rest/api/2/issue/{issue_key}/attachments"),
+        resp = self._request(
+            'POST', self._url(f"/rest/api/2/issue/{issue_key}/attachments"),
             headers={'X-Atlassian-Token': 'no-check'},
             files={'file': (filename, file_bytes, mime_type)}
         )
@@ -106,15 +112,15 @@ class JiraCommentClient:
         return self.append_to_comment(issue_key, comment_id, appended)
 
     def list_attachments(self, issue_key: str) -> list:
-        resp = self.session.get(
-            self._url(f"/rest/api/2/issue/{issue_key}"),
+        resp = self._request(
+            'GET', self._url(f"/rest/api/2/issue/{issue_key}"),
             params={'fields': 'attachment'}
         )
         self._raise_for_status(resp)
         return resp.json().get('fields', {}).get('attachment', [])
 
     def get_attachment_meta(self, attachment_id: str) -> dict:
-        resp = self.session.get(self._url(f"/rest/api/2/attachment/{attachment_id}"))
+        resp = self._request('GET', self._url(f"/rest/api/2/attachment/{attachment_id}"))
         self._raise_for_status(resp)
         return resp.json()
 
@@ -122,6 +128,6 @@ class JiraCommentClient:
         """Возвращает (bytes, content_type, filename) содержимого вложения."""
         meta = self.get_attachment_meta(attachment_id)
         content_url = meta['content']
-        resp = self.session.get(content_url)
+        resp = self._request('GET', content_url)
         self._raise_for_status(resp)
         return resp.content, meta.get('mimeType', 'application/octet-stream'), meta.get('filename')
