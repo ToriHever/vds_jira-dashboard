@@ -3,7 +3,7 @@
 Flask веб-приложение для отображения задач Jira из PostgreSQL
 """
 
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -11,7 +11,6 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import calendar
-from jira_comments import JiraCommentClient, JiraCommentError
 
 load_dotenv()
 
@@ -446,77 +445,6 @@ def save_gsc_data():
     cursor.close()
     conn.close()
     return jsonify({'ok': True})
-
-
-@app.route('/api/issue/<issue_key>/comments')
-def get_issue_comments(issue_key):
-    try:
-        client = JiraCommentClient()
-        comments = client.list_comments(issue_key)
-        attachments = client.list_attachments(issue_key)
-        return jsonify({'comments': comments, 'attachments': attachments})
-    except JiraCommentError as e:
-        return jsonify({'error': str(e)}), 502
-
-
-@app.route('/api/issue/<issue_key>/comment', methods=['POST'])
-def add_issue_comment(issue_key):
-    body = request.get_json() or {}
-    text = body.get('text', '').strip()
-    if not text:
-        return jsonify({'error': 'Пустой текст комментария'}), 400
-    try:
-        client = JiraCommentClient()
-        comment = client.add_comment(issue_key, text)
-        return jsonify(comment)
-    except JiraCommentError as e:
-        return jsonify({'error': str(e)}), 502
-
-
-@app.route('/api/issue/<issue_key>/comment/<comment_id>/append', methods=['POST'])
-def append_issue_comment(issue_key, comment_id):
-    body = request.get_json() or {}
-    text = body.get('text', '').strip()
-    if not text:
-        return jsonify({'error': 'Пустой текст для дописывания'}), 400
-    try:
-        client = JiraCommentClient()
-        comment = client.append_to_comment(issue_key, comment_id, text)
-        return jsonify(comment)
-    except JiraCommentError as e:
-        return jsonify({'error': str(e)}), 502
-
-
-@app.route('/api/issue/<issue_key>/comment/<comment_id>/append-image', methods=['POST'])
-def append_issue_comment_image(issue_key, comment_id):
-    file = request.files.get('file')
-    if not file or not file.filename:
-        return jsonify({'error': 'Файл не передан'}), 400
-    caption = request.form.get('text', '').strip()
-    try:
-        client = JiraCommentClient()
-        comment = client.append_image_to_comment(
-            issue_key, comment_id,
-            filename=file.filename,
-            file_bytes=file.read(),
-            mime_type=file.mimetype or 'application/octet-stream',
-            text=caption
-        )
-        return jsonify(comment)
-    except JiraCommentError as e:
-        return jsonify({'error': str(e)}), 502
-
-
-@app.route('/api/attachment/<attachment_id>/content')
-def get_attachment_content(attachment_id):
-    try:
-        client = JiraCommentClient()
-        content, mime_type, filename = client.get_attachment_content(attachment_id)
-        return Response(content, mimetype=mime_type, headers={
-            'Content-Disposition': f'inline; filename="{filename}"'
-        })
-    except JiraCommentError as e:
-        return jsonify({'error': str(e)}), 502
 
 
 @app.template_filter('format_date')
