@@ -3,11 +3,10 @@
 Клиент для работы с комментариями и вложениями Jira (REST API v2, Jira Server/DC).
 
 Комментарии в Jira - это список независимых объектов, поэтому создание нового
-комментария никогда не затрагивает существующие. "Дописывание" в конец уже
-существующего комментария не поддерживается Jira напрямую (PUT на комментарий
-целиком заменяет body) - поэтому оно эмулируется здесь: тело комментария
-считывается, к нему добавляется новый текст, и получившийся результат
-отправляется обратно через PUT.
+комментария никогда не затрагивает существующие. Полное редактирование
+существующего комментария (update_comment) заменяет body целиком - это
+делается по явному действию пользователя в UI (кнопка "сохранить"), а не
+случайно.
 """
 
 import os
@@ -64,15 +63,11 @@ class JiraCommentClient:
         self._raise_for_status(resp)
         return resp.json()
 
-    def append_to_comment(self, issue_key: str, comment_id: str, text: str,
-                           separator: str = "\n\n") -> dict:
-        """Дописывает text в конец существующего комментария, не трогая уже написанное."""
-        current = self.get_comment(issue_key, comment_id)
-        current_body = current.get('body') or ''
-        new_body = f"{current_body}{separator}{text}" if current_body else text
+    def update_comment(self, issue_key: str, comment_id: str, body: str) -> dict:
+        """Полностью заменяет текст существующего комментария (редактирование)."""
         resp = self._request(
             'PUT', self._url(f"/rest/api/2/issue/{issue_key}/comment/{comment_id}"),
-            json={'body': new_body}
+            json={'body': body}
         )
         self._raise_for_status(resp)
         return resp.json()
@@ -98,18 +93,6 @@ class JiraCommentClient:
         )
         self._raise_for_status(resp)
         return resp.json()
-
-    def append_image_to_comment(self, issue_key: str, comment_id: str,
-                                 filename: str, file_bytes: bytes,
-                                 mime_type: str = 'application/octet-stream',
-                                 text: str = '') -> dict:
-        """Загружает картинку как вложение к задаче и дописывает ссылку на неё
-        (wiki-markup !filename!) в конец указанного комментария."""
-        attachments = self.upload_attachment(issue_key, filename, file_bytes, mime_type)
-        uploaded_name = attachments[-1]['filename'] if attachments else filename
-        markup = f"!{uploaded_name}!"
-        appended = f"{text}\n{markup}" if text else markup
-        return self.append_to_comment(issue_key, comment_id, appended)
 
     def list_attachments(self, issue_key: str) -> list:
         resp = self._request(
