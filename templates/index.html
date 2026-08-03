@@ -167,6 +167,19 @@
 
         </div>
     </div>
+
+    <div id="commentsModalOverlay" class="comments-modal-overlay" onclick="closeCommentsModal(event)">
+        <div class="comments-modal" onclick="event.stopPropagation()">
+            <div class="comments-modal-header">
+                <h3 id="commentsModalTitle">Комментарии</h3>
+                <button class="comments-modal-close" onclick="closeCommentsModal()">✕</button>
+            </div>
+            <div id="commentsModalBody" class="comments-modal-body">
+                <div class="comments-loading">Загрузка…</div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
 </body>

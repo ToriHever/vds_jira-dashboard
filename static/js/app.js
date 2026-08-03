@@ -348,6 +348,7 @@ function renderIssuesTable(issues) {
                 <th onclick="sortTable('time_spent')" style="cursor: pointer;" title="Кликните для сортировки">Затрачено ${getSortIcon('time_spent')}</th>
                 <th style="cursor: default;">Спринт</th>
                 <th style="cursor: default;">Связи</th>
+                <th style="cursor: default;">Комментарии</th>
             </tr>
         </thead>
         <tbody>
@@ -363,6 +364,7 @@ function renderIssuesTable(issues) {
                     <td>${formatHours(issue.time_spent)}</td>
                     <td>${issue.sprint || '-'}</td>
                     <td>${renderLinkedIssues(issue.linked_issues)}</td>
+                    <td><button class="refresh-btn" style="padding: 6px 12px; font-size: 0.85em;" onclick="openCommentsModal('${issue.issue_key}')">💬 Открыть</button></td>
                 </tr>
             `).join('')}
         </tbody>
@@ -1213,4 +1215,156 @@ function getStatusClass(status) {
     if (['Готово', 'Done', 'Закрыта', 'Closed'].includes(status)) return 'status-done';
     if (['В работе', 'In Progress'].includes(status)) return 'status-progress';
     return 'status-open';
+}
+
+// ===== Комментарии Jira (получение / дописывание / картинки) =====
+
+let currentCommentsIssueKey = null;
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+function renderCommentBody(body, attachmentsByName) {
+    let escaped = escapeHtml(body || '');
+    // Jira wiki-markup для картинок: !filename! или !filename|thumbnail!
+    escaped = escaped.replace(/!([^!\n|]+?)(\|[^!\n]*)?!/g, (match, filename) => {
+        const att = attachmentsByName[filename.trim()];
+        if (!att) return match;
+        return `<br><img src="/api/attachment/${att.id}/content" alt="${escapeHtml(filename)}" class="comment-image" onclick="window.open(this.src, '_blank')">`;
+    });
+    return escaped.replace(/\n/g, '<br>');
+}
+
+function openCommentsModal(issueKey) {
+    currentCommentsIssueKey = issueKey;
+    document.getElementById('commentsModalTitle').textContent = `Комментарии: ${issueKey}`;
+    document.getElementById('commentsModalBody').innerHTML = '<div class="comments-loading">Загрузка…</div>';
+    document.getElementById('commentsModalOverlay').classList.add('open');
+    loadComments(issueKey);
+}
+
+function closeCommentsModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('commentsModalOverlay').classList.remove('open');
+    currentCommentsIssueKey = null;
+}
+
+async function loadComments(issueKey) {
+    try {
+        const response = await fetch(`/api/issue/${issueKey}/comments`);
+        const data = await response.json();
+        if (data.error) {
+            document.getElementById('commentsModalBody').innerHTML =
+                `<div class="comments-error">Ошибка загрузки: ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+        renderCommentsModalBody(issueKey, data.comments || [], data.attachments || []);
+    } catch (e) {
+        document.getElementById('commentsModalBody').innerHTML =
+            `<div class="comments-error">Не удалось загрузить комментарии: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function renderCommentsModalBody(issueKey, comments, attachments) {
+    const attachmentsByName = {};
+    attachments.forEach(a => { attachmentsByName[a.filename] = a; });
+
+    const commentsHtml = comments.length
+        ? comments.map(c => `
+            <div class="comment-card">
+                <div class="comment-meta">
+                    <b>${escapeHtml(c.author ? c.author.displayName : '')}</b>
+                    <span class="comment-date">${escapeHtml(c.updated || c.created || '')}</span>
+                </div>
+                <div class="comment-body">${renderCommentBody(c.body, attachmentsByName)}</div>
+                <div class="comment-actions">
+                    <textarea id="append-text-${c.id}" class="comment-append-input" placeholder="Дописать в конец этого комментария…"></textarea>
+                    <div class="comment-actions-row">
+                        <button class="refresh-btn" onclick="submitAppendText('${issueKey}', '${c.id}')">➕ Дописать текст</button>
+                        <label class="comment-image-upload">
+                            🖼️ Прикрепить картинку
+                            <input type="file" accept="image/*" style="display:none" onchange="submitAppendImage('${issueKey}', '${c.id}', this)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+        `).join('')
+        : '<div class="comments-empty">Комментариев пока нет</div>';
+
+    document.getElementById('commentsModalBody').innerHTML = `
+        <div class="comments-list">${commentsHtml}</div>
+        <div class="comment-new">
+            <h4>Новый комментарий</h4>
+            <textarea id="new-comment-text" class="comment-append-input" placeholder="Текст нового комментария…"></textarea>
+            <button class="refresh-btn" onclick="submitNewComment('${issueKey}')">💬 Добавить комментарий</button>
+        </div>
+    `;
+}
+
+async function submitAppendText(issueKey, commentId) {
+    const textarea = document.getElementById(`append-text-${commentId}`);
+    const text = textarea.value.trim();
+    if (!text) return;
+    try {
+        const response = await fetch(`/api/issue/${issueKey}/comment/${commentId}/append`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(`Ошибка: ${data.error}`);
+            return;
+        }
+        loadComments(issueKey);
+    } catch (e) {
+        alert(`Ошибка дописывания комментария: ${e.message}`);
+    }
+}
+
+async function submitAppendImage(issueKey, commentId, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const response = await fetch(`/api/issue/${issueKey}/comment/${commentId}/append-image`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(`Ошибка: ${data.error}`);
+            return;
+        }
+        loadComments(issueKey);
+    } catch (e) {
+        alert(`Ошибка загрузки картинки: ${e.message}`);
+    } finally {
+        input.value = '';
+    }
+}
+
+async function submitNewComment(issueKey) {
+    const textarea = document.getElementById('new-comment-text');
+    const text = textarea.value.trim();
+    if (!text) return;
+    try {
+        const response = await fetch(`/api/issue/${issueKey}/comment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(`Ошибка: ${data.error}`);
+            return;
+        }
+        loadComments(issueKey);
+    } catch (e) {
+        alert(`Ошибка добавления комментария: ${e.message}`);
+    }
 }
