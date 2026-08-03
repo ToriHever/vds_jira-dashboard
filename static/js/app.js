@@ -1218,6 +1218,11 @@ function getStatusClass(status) {
 }
 
 // ===== Комментарии Jira (получение / дописывание / картинки) =====
+// VDS, на котором крутится дашборд, не имеет сетевого доступа к Jira.
+// Поэтому запросы по комментариям идут не на сам дашборд, а на локальный
+// прокси-сервис (local_jira_proxy.py), который вы запускаете у себя на
+// компьютере - у него доступ к Jira есть.
+const JIRA_PROXY_BASE = 'http://localhost:5057';
 
 let currentCommentsIssueKey = null;
 
@@ -1233,7 +1238,7 @@ function renderCommentBody(body, attachmentsByName) {
     escaped = escaped.replace(/!([^!\n|]+?)(\|[^!\n]*)?!/g, (match, filename) => {
         const att = attachmentsByName[filename.trim()];
         if (!att) return match;
-        return `<br><img src="/api/attachment/${att.id}/content" alt="${escapeHtml(filename)}" class="comment-image" onclick="window.open(this.src, '_blank')">`;
+        return `<br><img src="${JIRA_PROXY_BASE}/api/attachment/${att.id}/content" alt="${escapeHtml(filename)}" class="comment-image" onclick="window.open(this.src, '_blank')">`;
     });
     return escaped.replace(/\n/g, '<br>');
 }
@@ -1252,9 +1257,16 @@ function closeCommentsModal(event) {
     currentCommentsIssueKey = null;
 }
 
+function proxyUnavailableHtml() {
+    return `<div class="comments-error">
+        Не удалось подключиться к локальному Jira-прокси на ${escapeHtml(JIRA_PROXY_BASE)}.<br>
+        Запустите на своём компьютере <code>python local_jira_proxy.py</code> и обновите окно.
+    </div>`;
+}
+
 async function loadComments(issueKey) {
     try {
-        const response = await fetch(`/api/issue/${issueKey}/comments`);
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comments`);
         const data = await response.json();
         if (data.error) {
             document.getElementById('commentsModalBody').innerHTML =
@@ -1263,8 +1275,7 @@ async function loadComments(issueKey) {
         }
         renderCommentsModalBody(issueKey, data.comments || [], data.attachments || []);
     } catch (e) {
-        document.getElementById('commentsModalBody').innerHTML =
-            `<div class="comments-error">Не удалось загрузить комментарии: ${escapeHtml(e.message)}</div>`;
+        document.getElementById('commentsModalBody').innerHTML = proxyUnavailableHtml();
     }
 }
 
@@ -1309,7 +1320,7 @@ async function submitAppendText(issueKey, commentId) {
     const text = textarea.value.trim();
     if (!text) return;
     try {
-        const response = await fetch(`/api/issue/${issueKey}/comment/${commentId}/append`, {
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment/${commentId}/append`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text })
@@ -1321,7 +1332,7 @@ async function submitAppendText(issueKey, commentId) {
         }
         loadComments(issueKey);
     } catch (e) {
-        alert(`Ошибка дописывания комментария: ${e.message}`);
+        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
     }
 }
 
@@ -1331,7 +1342,7 @@ async function submitAppendImage(issueKey, commentId, input) {
     const formData = new FormData();
     formData.append('file', file);
     try {
-        const response = await fetch(`/api/issue/${issueKey}/comment/${commentId}/append-image`, {
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment/${commentId}/append-image`, {
             method: 'POST',
             body: formData
         });
@@ -1342,7 +1353,7 @@ async function submitAppendImage(issueKey, commentId, input) {
         }
         loadComments(issueKey);
     } catch (e) {
-        alert(`Ошибка загрузки картинки: ${e.message}`);
+        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
     } finally {
         input.value = '';
     }
@@ -1353,7 +1364,7 @@ async function submitNewComment(issueKey) {
     const text = textarea.value.trim();
     if (!text) return;
     try {
-        const response = await fetch(`/api/issue/${issueKey}/comment`, {
+        const response = await fetch(`${JIRA_PROXY_BASE}/api/issue/${issueKey}/comment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text })
@@ -1365,6 +1376,6 @@ async function submitNewComment(issueKey) {
         }
         loadComments(issueKey);
     } catch (e) {
-        alert(`Ошибка добавления комментария: ${e.message}`);
+        alert(`Не удалось подключиться к локальному Jira-прокси (${JIRA_PROXY_BASE}). Запущен ли local_jira_proxy.py?`);
     }
 }
