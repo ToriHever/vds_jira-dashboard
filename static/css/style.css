@@ -632,12 +632,17 @@ tr.row-epic:hover {
     background: #fff;
     border-radius: 10px;
     width: 76vw;
-    max-width: 76vw;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 1024px) {
+    .comments-modal {
+    width: 95vw;
+    }
 }
 .comments-modal-header {
     display: flex;
