@@ -999,11 +999,13 @@ function taskRow(t) {
 }
 
 // Рендер карточки направления с раскрываемым списком
-function directionsPieChart(directions, colors) {
-    const total = directions.reduce((sum, d) => sum + d.total, 0);
+function directionsPieChart(directionsInput, colors) {
+    const total = directionsInput.reduce((sum, d) => sum + d.total, 0);
     if (!total) {
         return '<p style="color:#9ca3af;font-size:13px;margin-bottom:28px;">Нет задач за этот квартал</p>';
     }
+    // Сортируем по убыванию доли (= по убыванию total), не полагаясь на порядок с бэкенда.
+    const directions = [...directionsInput].sort((a, b) => b.total - a.total);
 
     const r = 70, cx = 90, cy = 90, strokeWidth = 28;
     const circumference = 2 * Math.PI * r;
