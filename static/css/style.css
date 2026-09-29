@@ -515,6 +515,57 @@ tr.row-epic:hover {
  
 .q-bar-bg { height: 4px; background: #f3f4f6; border-radius: 2px; margin-bottom: 10px; }
 .q-bar-fill { height: 4px; border-radius: 2px; transition: width .4s ease; }
+
+/* Диаграмма доли задач по направлениям */
+.q-pie-wrap {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+}
+.q-pie-svg {
+    width: 180px;
+    height: 180px;
+    flex-shrink: 0;
+}
+.q-pie-svg circle {
+    transition: stroke-dasharray .4s ease;
+}
+.q-pie-center-num {
+    font-size: 30px;
+    font-weight: 700;
+    fill: #111827;
+}
+.q-pie-center-label {
+    font-size: 11px;
+    fill: #9ca3af;
+}
+.q-pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.q-pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #111827;
+}
+.q-pie-legend-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.q-pie-legend-val {
+    color: #9ca3af;
+    white-space: nowrap;
+    margin-left: auto;
+    padding-left: 12px;
+}
  
 /* Задачи */
 .q-task-list { display: flex; flex-direction: column; gap: 2px; }
