@@ -566,7 +566,75 @@ tr.row-epic:hover {
     margin-left: auto;
     padding-left: 12px;
 }
- 
+
+/* Горизонтальная двухстолбчатая диаграмма: задачи vs время по направлениям */
+.q-cmp-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+.q-cmp-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.q-cmp-label {
+    width: 160px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.q-cmp-bars {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.q-cmp-bar-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 14px;
+}
+.q-cmp-bar {
+    height: 100%;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width .4s ease;
+}
+.q-cmp-bar-count { background: #2a78d6; }
+.q-cmp-bar-hours { background: #eda100; }
+.q-cmp-bar-value {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+.q-cmp-legend {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 28px;
+}
+.q-cmp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b7280;
+}
+.q-cmp-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+@media (max-width: 700px) {
+    .q-cmp-label { width: 110px; font-size: 12px; }
+}
+
 /* Задачи */
 .q-task-list { display: flex; flex-direction: column; gap: 2px; }
 .q-task-row {
