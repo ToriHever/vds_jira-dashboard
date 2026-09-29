@@ -657,6 +657,12 @@ tr.row-epic:hover {
     white-space: nowrap;
     min-width: 0;
 }
+.q-task-spent {
+    color: #9ca3af;
+    font-size: 11px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
 .q-task-status {
     font-size: 10px;
     padding: 1px 6px;

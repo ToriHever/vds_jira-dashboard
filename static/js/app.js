@@ -994,25 +994,26 @@ function taskRow(t) {
     return `<div class="q-task-row">
       <a class="q-task-key" href="${JIRA_BASE}/${t.key}" target="_blank" rel="noopener">${t.key}</a>
       <span class="q-task-sum">${t.summary}</span>
+      <span class="q-task-spent">${t.spent}ч</span>
       <span class="q-task-status ${getStatusClass(t.status)}">${t.status}</span>
     </div>`;
 }
 
 // Рендер карточки направления с раскрываемым списком
 function directionsPieChart(directionsInput, colors) {
-    const total = directionsInput.reduce((sum, d) => sum + d.total, 0);
-    if (!total) {
-        return '<p style="color:#9ca3af;font-size:13px;margin-bottom:28px;">Нет задач за этот квартал</p>';
+    const totalHours = directionsInput.reduce((sum, d) => sum + d.spent, 0);
+    if (!totalHours) {
+        return '<p style="color:#9ca3af;font-size:13px;margin-bottom:28px;">Нет затраченного времени за этот квартал</p>';
     }
-    // Сортируем по убыванию доли (= по убыванию total), не полагаясь на порядок с бэкенда.
-    const directions = [...directionsInput].sort((a, b) => b.total - a.total);
+    // Сортируем по убыванию доли затраченного времени, не полагаясь на порядок с бэкенда.
+    const directions = [...directionsInput].sort((a, b) => b.spent - a.spent);
 
     const r = 70, cx = 90, cy = 90, strokeWidth = 28;
     const circumference = 2 * Math.PI * r;
     let offsetAcc = 0;
 
     const segments = directions.map((dir, idx) => {
-        const share = dir.total / total;
+        const share = dir.spent / totalHours;
         const dash = circumference * share;
         const gap = circumference - dash;
         const circle = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[idx % colors.length]}" stroke-width="${strokeWidth}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offsetAcc).toFixed(2)}"></circle>`;
@@ -1021,22 +1022,22 @@ function directionsPieChart(directionsInput, colors) {
     }).join('');
 
     const legend = directions.map((dir, idx) => {
-        const pct = Math.round(dir.total / total * 100);
+        const pct = Math.round(dir.spent / totalHours * 100);
         return `
         <div class="q-pie-legend-item">
             <span class="q-dir-dot" style="background:${colors[idx % colors.length]}"></span>
             <span class="q-pie-legend-name">${dir.name}</span>
-            <span class="q-pie-legend-val">${dir.total} (${pct}%)</span>
+            <span class="q-pie-legend-val">${dir.spent}ч (${pct}%)</span>
         </div>`;
     }).join('');
 
     return `
     <div class="q-pie-wrap">
-        <svg viewBox="0 0 180 180" class="q-pie-svg" role="img" aria-label="Доля задач по направлениям">
+        <svg viewBox="0 0 180 180" class="q-pie-svg" role="img" aria-label="Доля затраченного времени по направлениям">
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f3f4f6" stroke-width="${strokeWidth}"></circle>
             <g transform="rotate(-90 ${cx} ${cy})">${segments}</g>
-            <text x="${cx}" y="${cy - 4}" text-anchor="middle" class="q-pie-center-num">${total}</text>
-            <text x="${cx}" y="${cy + 16}" text-anchor="middle" class="q-pie-center-label">задач</text>
+            <text x="${cx}" y="${cy - 4}" text-anchor="middle" class="q-pie-center-num">${totalHours}</text>
+            <text x="${cx}" y="${cy + 16}" text-anchor="middle" class="q-pie-center-label">часов</text>
         </svg>
         <div class="q-pie-legend">${legend}</div>
     </div>`;
@@ -1263,7 +1264,7 @@ function renderQuarterlyReport(data, container) {
         </div>
       </div>
  
-      <div class="q-section-label">Доля задач по направлениям за квартал</div>
+      <div class="q-section-label">Доля затраченного времени по направлениям за квартал</div>
       ${directionsPieChart(data.directions, dirColors)}
 
       <div class="q-section-label">Количество задач и затраченное время по направлениям</div>
