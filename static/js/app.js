@@ -1042,6 +1042,39 @@ function directionsPieChart(directionsInput, colors) {
     </div>`;
 }
 
+function directionsComparisonChart(directionsInput) {
+    if (!directionsInput.length) return '';
+    const directions = [...directionsInput].sort((a, b) => b.total - a.total);
+    const maxCount = Math.max(...directions.map(d => d.total), 1);
+    const maxHours = Math.max(...directions.map(d => d.spent), 1);
+
+    const rows = directions.map(dir => {
+        const countPct = Math.round(dir.total / maxCount * 100);
+        const hoursPct = Math.round(dir.spent / maxHours * 100);
+        return `
+        <div class="q-cmp-row">
+            <div class="q-cmp-label">${dir.name}</div>
+            <div class="q-cmp-bars">
+                <div class="q-cmp-bar-track">
+                    <div class="q-cmp-bar q-cmp-bar-count" style="width:${countPct}%"></div>
+                    <span class="q-cmp-bar-value">${dir.total} задач</span>
+                </div>
+                <div class="q-cmp-bar-track">
+                    <div class="q-cmp-bar q-cmp-bar-hours" style="width:${hoursPct}%"></div>
+                    <span class="q-cmp-bar-value">${dir.spent}ч</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="q-cmp-chart">${rows}</div>
+    <div class="q-cmp-legend">
+        <span class="q-cmp-legend-item"><span class="q-cmp-legend-dot q-cmp-bar-count"></span>Количество задач</span>
+        <span class="q-cmp-legend-item"><span class="q-cmp-legend-dot q-cmp-bar-hours"></span>Затраченное время</span>
+    </div>`;
+}
+
 function dirCard(dir, color) {
     const pct = dir.total ? Math.round(dir.done / dir.total * 100) : 0;
     const INITIAL = 4;
@@ -1232,6 +1265,9 @@ function renderQuarterlyReport(data, container) {
  
       <div class="q-section-label">Доля задач по направлениям за квартал</div>
       ${directionsPieChart(data.directions, dirColors)}
+
+      <div class="q-section-label">Количество задач и затраченное время по направлениям</div>
+      ${directionsComparisonChart(data.directions)}
 
       <div class="q-section-label">Что сделано по направлениям</div>
       <div class="q-directions-grid">
