@@ -999,6 +999,47 @@ function taskRow(t) {
 }
 
 // Рендер карточки направления с раскрываемым списком
+function directionsPieChart(directions, colors) {
+    const total = directions.reduce((sum, d) => sum + d.total, 0);
+    if (!total) {
+        return '<p style="color:#9ca3af;font-size:13px;margin-bottom:28px;">Нет задач за этот квартал</p>';
+    }
+
+    const r = 70, cx = 90, cy = 90, strokeWidth = 28;
+    const circumference = 2 * Math.PI * r;
+    let offsetAcc = 0;
+
+    const segments = directions.map((dir, idx) => {
+        const share = dir.total / total;
+        const dash = circumference * share;
+        const gap = circumference - dash;
+        const circle = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[idx % colors.length]}" stroke-width="${strokeWidth}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offsetAcc).toFixed(2)}"></circle>`;
+        offsetAcc += dash;
+        return circle;
+    }).join('');
+
+    const legend = directions.map((dir, idx) => {
+        const pct = Math.round(dir.total / total * 100);
+        return `
+        <div class="q-pie-legend-item">
+            <span class="q-dir-dot" style="background:${colors[idx % colors.length]}"></span>
+            <span class="q-pie-legend-name">${dir.name}</span>
+            <span class="q-pie-legend-val">${dir.total} (${pct}%)</span>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="q-pie-wrap">
+        <svg viewBox="0 0 180 180" class="q-pie-svg" role="img" aria-label="Доля задач по направлениям">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f3f4f6" stroke-width="${strokeWidth}"></circle>
+            <g transform="rotate(-90 ${cx} ${cy})">${segments}</g>
+            <text x="${cx}" y="${cy - 4}" text-anchor="middle" class="q-pie-center-num">${total}</text>
+            <text x="${cx}" y="${cy + 16}" text-anchor="middle" class="q-pie-center-label">задач</text>
+        </svg>
+        <div class="q-pie-legend">${legend}</div>
+    </div>`;
+}
+
 function dirCard(dir, color) {
     const pct = dir.total ? Math.round(dir.done / dir.total * 100) : 0;
     const INITIAL = 4;
@@ -1187,6 +1228,9 @@ function renderQuarterlyReport(data, container) {
         </div>
       </div>
  
+      <div class="q-section-label">Доля задач по направлениям за квартал</div>
+      ${directionsPieChart(data.directions, dirColors)}
+
       <div class="q-section-label">Что сделано по направлениям</div>
       <div class="q-directions-grid">
         ${data.directions.map((dir, idx) => dirCard(dir, dirColors[idx % dirColors.length])).join('')}
